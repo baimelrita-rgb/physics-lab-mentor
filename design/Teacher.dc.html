@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>מסך מורה – שיעור חי</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#1E4FA8}a:hover{color:#163C80}
+button{font-family:inherit}
+</style>
+</helmet>
+<div dir="rtl" style="min-height:100vh;background:#EEF1F4;font-family:Heebo,system-ui,sans-serif;color:#15191E">
+
+<header style="background:#262C33;color:#F4F6F8;padding:0 24px">
+<div style="max-width:1400px;margin:0 auto;display:flex;align-items:center;gap:24px;flex-wrap:wrap;min-height:60px">
+<div style="font-size:19px;font-weight:700">מנטור מעבדה · מורה</div>
+<nav aria-label="לשוניות" style="display:flex;gap:4px;flex-wrap:wrap">
+<a href="#" style="color:#FFFFFF;background:#1E4FA8;border-radius:8px;padding:8px 14px;text-decoration:none;font-size:15px;font-weight:600">שיעור חי</a>
+<a href="#" style="color:#C9D0D8;border-radius:8px;padding:8px 14px;text-decoration:none;font-size:15px">תרגילים</a>
+<a href="#" style="color:#C9D0D8;border-radius:8px;padding:8px 14px;text-decoration:none;font-size:15px">תלמידים</a>
+<a href="#" style="color:#C9D0D8;border-radius:8px;padding:8px 14px;text-decoration:none;font-size:15px">כיתה</a>
+<a href="#" style="color:#C9D0D8;border-radius:8px;padding:8px 14px;text-decoration:none;font-size:15px">תוכן</a>
+</nav>
+<div style="margin-inline-start:auto;font-size:14px;color:#AEB7C2">[שם הכיתה] · [תאריך השיעור]</div>
+</div>
+</header>
+
+<div style="max-width:1400px;margin:0 auto;padding:20px 24px;display:flex;flex-direction:column;gap:20px">
+
+<div style="background:#FFF6E5;border:1px solid #F0D39A;border-radius:10px;padding:10px 14px;font-size:14px;color:#6B4A0F">כל המספרים במסך זה הם נתוני דוגמה להמחשת הפריסה.</div>
+
+<section aria-label="תרגיל פעיל" style="background:#FFFFFF;border:1px solid #D8DEE5;border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+<div>
+<div style="font-size:13px;color:#5A6573">תרגיל פעיל</div>
+<div style="font-size:18px;font-weight:700">EX-01 · האטה: עומס או תדר</div>
+</div>
+<div style="font-size:14px;color:#5A6573">הקלטה E03 · עצירה בשנייה 22 · מעטפת התאמה: ללא (Tier A)</div>
+<div style="margin-inline-start:auto;display:flex;gap:8px;flex-wrap:wrap">
+<button style="min-height:44px;padding:0 16px;border-radius:8px;border:1px solid #B9C3CE;background:#FFFFFF;font-size:14px;cursor:pointer">השהה את כולם</button>
+<button style="min-height:44px;padding:0 16px;border-radius:8px;border:none;background:#1E4FA8;color:#FFFFFF;font-size:14px;font-weight:600;cursor:pointer">שחרר שלב לכולם</button>
+</div>
+</section>
+
+<div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start">
+
+<section aria-label="עמדות ותלמידים" style="flex:999 1 640px;min-width:0;display:flex;flex-direction:column;gap:12px">
+<div style="font-size:16px;font-weight:700">עמדות ותלמידים</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px">
+<sc-for list="{{cards}}" as="c" hint-placeholder-count="6">
+<article style="background:#FFFFFF;border:1px solid {{c.border}};border-width:{{c.bw}};border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;justify-content:space-between;align-items:center">
+<div style="font-size:16px;font-weight:700">{{c.who}}</div>
+<span style="font-size:12px;color:#5A6573">{{c.station}}</span>
+</div>
+<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+<span style="background:#E4ECFA;color:#1E4FA8;border-radius:999px;padding:3px 10px;font-size:13px;font-weight:600">{{c.stage}}</span>
+<span style="font-size:13px;color:#5A6573">{{c.time}} בשלב</span>
+</div>
+<div style="font-size:14px">השערה אחרונה: <span style="font-weight:600">{{c.hyp}}</span></div>
+<div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;color:#5A6573">
+<span>רמזים: {{c.hints}} מתוך 3</span>
+<sc-if value="{{c.hasFlag}}" hint-placeholder-val="{{true}}">
+<span style="background:{{c.flagBg}};color:{{c.flagFg}};border-radius:6px;padding:2px 8px;font-weight:600">{{c.flag}}</span>
+</sc-if>
+</div>
+<div style="display:flex;gap:6px">
+<button style="flex:1;min-height:40px;border-radius:8px;border:1px solid #B9C3CE;background:#FFFFFF;font-size:13px;cursor:pointer">פתח יומן</button>
+<button style="flex:1;min-height:40px;border-radius:8px;border:1px solid #B9C3CE;background:#FFFFFF;font-size:13px;cursor:pointer">תן רמז</button>
+</div>
+</article>
+</sc-for>
+</div>
+</section>
+
+<aside aria-label="התראות" style="flex:1 1 300px;min-width:0;background:#FFFFFF;border:1px solid #D8DEE5;border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px">
+<div style="font-size:16px;font-weight:700">התראות</div>
+<sc-for list="{{alerts}}" as="a" hint-placeholder-count="3">
+<div style="border-inline-start:0;background:{{a.bg}};border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:4px">
+<div style="font-size:13px;font-weight:600;color:{{a.fg}}">{{a.kind}}</div>
+<div style="font-size:14px">{{a.text}}</div>
+</div>
+</sc-for>
+</aside>
+</div>
+
+<section aria-label="וריאציות ממתינות לאישור" style="background:#FFFFFF;border:1px solid #D8DEE5;border-radius:12px;padding:16px 20px;display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+<div style="font-size:16px;font-weight:700">וריאציות ממתינות לאישור · Tier A</div>
+<button style="min-height:40px;padding:0 14px;border-radius:8px;border:1px solid #1E4FA8;background:#FFFFFF;color:#1E4FA8;font-size:14px;cursor:pointer">צור 3 וריאציות חדשות</button>
+</div>
+<div style="overflow-x:auto">
+<table style="width:100%;border-collapse:collapse;font-size:14px;min-width:760px">
+<thead>
+<tr style="text-align:start;color:#5A6573;font-size:13px">
+<th style="text-align:start;padding:8px;border-bottom:1px solid #D8DEE5;font-weight:600">תבנית</th>
+<th style="text-align:start;padding:8px;border-bottom:1px solid #D8DEE5;font-weight:600">פרמטרים</th>
+<th style="text-align:start;padding:8px;border-bottom:1px solid #D8DEE5;font-weight:600">בדיקות אוטומטיות</th>
+<th style="text-align:start;padding:8px;border-bottom:1px solid #D8DEE5;font-weight:600">קושי</th>
+<th style="text-align:start;padding:8px;border-bottom:1px solid #D8DEE5;font-weight:600">פעולה</th>
+</tr>
+</thead>
+<tbody>
+<sc-for list="{{variants}}" as="v" hint-placeholder-count="3">
+<tr>
+<td style="padding:10px 8px;border-bottom:1px solid #EEF1F4;font-weight:600">{{v.tpl}}</td>
+<td style="padding:10px 8px;border-bottom:1px solid #EEF1F4" dir="auto">{{v.params}}</td>
+<td style="padding:10px 8px;border-bottom:1px solid #EEF1F4;color:#3B7A3E">{{v.checks}}</td>
+<td style="padding:10px 8px;border-bottom:1px solid #EEF1F4">{{v.diff}}</td>
+<td style="padding:10px 8px;border-bottom:1px solid #EEF1F4">
+<div style="display:flex;gap:6px">
+<button style="min-height:36px;padding:0 10px;border-radius:8px;border:1px solid #B9C3CE;background:#FFFFFF;font-size:13px;cursor:pointer">תצוגה מקדימה</button>
+<button style="min-height:36px;padding:0 10px;border-radius:8px;border:none;background:#1E4FA8;color:#FFFFFF;font-size:13px;cursor:pointer">אשר</button>
+</div>
+</td>
+</tr>
+</sc-for>
+</tbody>
+</table>
+</div>
+</section>
+
+<div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start">
+<section aria-label="מחוון כיתתי" style="flex:999 1 560px;min-width:0;background:#FFFFFF;border:1px solid #D8DEE5;border-radius:12px;padding:16px 20px;display:flex;flex-direction:column;gap:10px">
+<div style="font-size:16px;font-weight:700">מחוון כיתתי · EX-01</div>
+<div style="overflow-x:auto">
+<table style="width:100%;border-collapse:separate;border-spacing:4px;font-size:14px;min-width:520px">
+<thead>
+<tr style="color:#5A6573;font-size:13px">
+<th style="text-align:start;font-weight:600">תלמיד</th>
+<th style="font-weight:600">השערה ותחזית</th>
+<th style="font-weight:600">בחירת בדיקה</th>
+<th style="font-weight:600">איכות ראיה</th>
+<th style="font-weight:600">מסקנה ובדיקה חוזרת</th>
+<th style="font-weight:600">סה״כ</th>
+</tr>
+</thead>
+<tbody>
+<sc-for list="{{rubric}}" as="r" hint-placeholder-count="5">
+<tr>
+<td style="font-weight:600">{{r.who}}</td>
+<sc-for list="{{r.cells}}" as="cell" hint-placeholder-count="4">
+<td style="text-align:center;border-radius:6px;padding:8px 0;background:{{cell.bg}};color:{{cell.fg}};font-weight:600">{{cell.v}}</td>
+</sc-for>
+<td style="text-align:center;font-weight:700">{{r.total}}/8</td>
+</tr>
+</sc-for>
+</tbody>
+</table>
+</div>
+<div style="display:flex;gap:14px;font-size:12px;color:#5A6573"><span>0 = טרם הודגם</span><span>1 = עם רמז</span><span>2 = עצמאי</span></div>
+</section>
+
+<section aria-label="תפיסות שגויות" style="flex:1 1 320px;min-width:0;background:#FFFFFF;border:1px solid #D8DEE5;border-radius:12px;padding:16px 20px;display:flex;flex-direction:column;gap:12px">
+<div style="font-size:16px;font-weight:700">תפיסות שגויות בשיעור</div>
+<sc-for list="{{misc}}" as="m" hint-placeholder-count="4">
+<div style="display:flex;flex-direction:column;gap:4px">
+<div style="display:flex;justify-content:space-between;font-size:14px"><span>{{m.label}}</span><span style="font-weight:600">{{m.n}}</span></div>
+<div style="height:8px;background:#EEF1F4;border-radius:4px"><div style="height:8px;width:{{m.w}};background:#C2570C;border-radius:4px"></div></div>
+</div>
+</sc-for>
+</section>
+</div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1340}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const flagStyle = {
+      'תקוע': ['#FDECEC', '#A12B2B'],
+      'רמז 3': ['#FFF1E0', '#9A4A06'],
+      'הושלם': ['#E7F4E8', '#2E6B31']
+    };
+    const card = (who, station, stage, time, hyp, hints, flag, border) => ({
+      who, station, stage, time, hyp, hints, flag,
+      hasFlag: !!flag,
+      flagBg: flag ? flagStyle[flag][0] : 'transparent',
+      flagFg: flag ? flagStyle[flag][1] : '#15191E',
+      border: border || '#D8DEE5', bw: border ? '2px' : '1px'
+    });
+    const cards = [
+      card('תלמיד 03', 'עמדה 1 · הקלטה', 'ראיות', '4:10', 'H-FREQ', 2, 'רמז 3', '#E39A4E'),
+      card('תלמיד 07', 'עמדה 1 · הקלטה', 'השערה', '6:45', '—', 0, 'תקוע', '#D46A6A'),
+      card('תלמיד 11', 'עמדה 1 · הקלטה', 'מסקנה', '1:20', 'H-LOAD', 1, 'הושלם'),
+      card('תלמיד 14', 'עמדה 1 · הקלטה', 'ראיות', '2:05', 'H-FREQ', 1, ''),
+      card('תלמיד 18', 'עמדה 1 · הקלטה', 'צפייה', '0:50', '—', 0, ''),
+      card('תלמיד 21', 'עמדה 1 · הקלטה', 'מסקנה', '0:30', 'H-LOAD', 0, 'הושלם')
+    ];
+    const alerts = [
+      { kind: 'תקוע', text: 'תלמיד 07: שש דקות בשלב ההשערה, בלי ערוץ פתוח.', bg: '#FDECEC', fg: '#A12B2B' },
+      { kind: 'הגיע לרמז 3', text: 'תלמיד 03 ביקש את הרמז האחרון.', bg: '#FFF1E0', fg: '#9A4A06' },
+      { kind: 'מחוץ לתחום', text: 'תלמיד 14 שאל שאלה שאינה קשורה לתרגיל. הוחזר לתרגיל.', bg: '#F3F5F8', fg: '#3A4450' }
+    ];
+    const variants = [
+      { tpl: 'VT-01 האטה', params: 'load_step ΔT 0.6 N·m, t=14 s, ramp 3 s', checks: 'פיזיקה ✓ הבחנה ✓ כינוי ✓', diff: 'בינוני' },
+      { tpl: 'VT-01 האטה', params: 'freq_ramp 50→44 Hz, t=10 s', checks: 'פיזיקה ✓ הבחנה ✓ כינוי ✓', diff: 'קל' },
+      { tpl: 'VT-03 מהירות קפואה', params: 'freeze speed 8 s בזמן ramp 50→40 Hz', checks: 'פיזיקה ✓ הבחנה ✓ כינוי ✓', diff: 'קשה' }
+    ];
+    const shade = (v) => v === 2 ? ['#DCEFDD', '#2E6B31'] : v === 1 ? ['#FFF1D6', '#8A5A00'] : ['#F3F5F8', '#5A6573'];
+    const row = (who, vals) => ({
+      who, total: vals.reduce((a, b) => a + b, 0),
+      cells: vals.map((v) => ({ v, bg: shade(v)[0], fg: shade(v)[1] }))
+    });
+    const rubric = [
+      row('תלמיד 03', [1, 1, 2, 1]),
+      row('תלמיד 07', [0, 0, 0, 0]),
+      row('תלמיד 11', [2, 2, 2, 1]),
+      row('תלמיד 14', [2, 1, 1, 1]),
+      row('תלמיד 21', [2, 2, 2, 2])
+    ];
+    const misc = [
+      { label: 'M-01 · כל האטה היא ירידת תדר', n: 3, w: '100%' },
+      { label: 'M-05 · פקודת תדר = תדר יציאה', n: 2, w: '67%' },
+      { label: 'M-03 · מספר מוצג הוא עדכני', n: 1, w: '33%' },
+      { label: 'M-04 · מומנט והספק כשתי ראיות', n: 1, w: '33%' }
+    ];
+    return { cards, alerts, variants, rubric, misc };
+  }
+}
+</script>
+</body>
+</html>
