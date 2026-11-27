@@ -1,0 +1,33 @@
+# Channel catalog for station type ST-MOT-VFD (Brain 2 · station profile).
+# key = CSV column. Groups follow the energy path, in fixed order (UI doc, S5).
+# quality / source_time name the CSV columns that qualify a channel, when it has them.
+groups:
+  - id: grid
+    title: כניסה לווסת
+    channels:
+      - {key: grid_v_rms_v, name: מתח רשת, unit: V}
+      - {key: grid_i_rms_a, name: זרם רשת, unit: A}
+      - {key: grid_f_hz, name: תדר רשת, unit: Hz}
+      - {key: grid_p_active_w, name: הספק רשת, unit: W}
+  - id: drive
+    title: בקר הווסת
+    channels:
+      - {key: f_set_hz, name: תדר יעד, unit: Hz}
+      - {key: f_drive_hz, name: תדר יציאה, unit: Hz}
+  - id: output
+    title: מוצא למנוע
+    channels:
+      - {key: i_u_rms_a, name: זרם קו U, unit: A}
+      - {key: i_v_rms_a, name: זרם קו V, unit: A, quality: i_v_quality}
+      - {key: i_w_rms_a, name: זרם קו W, unit: A}
+      - {key: u_uv_fund_rms_v, name: מתח קו UV, unit: V}
+  - id: shaft
+    title: ציר
+    channels:
+      - {key: speed_rpm, name: מהירות ציר, unit: rpm, quality: speed_quality, source_time: speed_sample_utc}
+      - {key: torque_nm, name: מומנט, unit: N·m}
+  - id: motor
+    title: מנוע
+    channels:
+      - {key: motor_temp_c, name: טמפרטורת מעטפת, unit: °C}
+      - {key: vibration_rms_mm_s, name: רעידות, unit: mm/s}

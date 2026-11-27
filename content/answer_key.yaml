@@ -1,0 +1,49 @@
+# ANSWER KEY — server only. Read by the diagnosis module; never sent to the student API.
+# cause: the hypothesis code the evidence supports.
+# evidence: readings that support it. Each item needs a cited reading of one of the channels
+#   inside the window (seconds, inclusive). `any_of` = one reading from the list is enough.
+# misconceptions: hypothesis code -> misconception id shown as a targeted redirect.
+
+EX-01:
+  check_answer: 0  # index of the correct choice in the theory check question
+  cause: H-LOAD
+  evidence:
+    - {any_of: [f_drive_hz], window: [0, 10], label: תדר יציאה לפני}
+    - {any_of: [f_drive_hz], window: [16, 22], label: תדר יציאה אחרי}
+    - {any_of: [torque_nm, i_u_rms_a, i_v_rms_a, i_w_rms_a], window: [16, 22], label: מומנט או זרם אחרי}
+  misconceptions: {H-FREQ: M-01, H-CMD: M-05, H-SUPPLY: M-06}
+  conclusion: תדר נשאר 50 Hz, מומנט עלה מ־0.65 ל־1.55 N·m. תוספת עומס.
+
+EX-02:
+  check_answer: 1  # index of the correct choice in the theory check question
+  cause: H-MISSING
+  evidence:
+    - {any_of: [i_u_rms_a, i_w_rms_a], window: [12, 20], label: זרם U או W במהלך הפער}
+    - {any_of: [i_v_rms_a], window: [12, 20], label: ערוץ V במהלך הפער}
+  misconceptions: {H-LOAD: M-02, H-SUPPLY: M-02}
+  conclusion: חסר ברכישה. U ו־W נשארו 0.730/0.731 A, אין בסיס לאובדן פאזה. V חוזר בשנייה 22.
+
+EX-03:
+  check_answer: 1  # index of the correct choice in the theory check question
+  cause: H-STALE
+  evidence:
+    - {any_of: [speed_rpm], window: [10, 18], label: מהירות בזמן הרמפה}
+    - {any_of: [f_drive_hz], window: [10, 18], label: תדר יציאה בזמן הרמפה}
+  misconceptions: {H-LOAD: M-03, H-FREQ: M-03}
+  conclusion: בשנייה 18 הסל״ד (717) שייך לשנייה 9. התדר כבר 47.5 Hz. תגובת הציר מאומתת רק בשנייה 25.
+
+EX-04:
+  check_answer: 1  # index of the correct choice in the theory check question
+  cause: H-OVERLOAD
+  evidence:
+    - {any_of: [i_u_rms_a, i_v_rms_a, i_w_rms_a], window: [15, 20], label: זרם קו בזמן החריגה}
+    - {any_of: [torque_nm], window: [15, 20], label: מומנט בזמן החריגה}
+  misconceptions: {H-FREQ: M-01}
+  conclusion: בשנייה 20 2.85 N·m ו־1.304/1.299/1.308 A, מעל הנקוב. חריגה מדומה, מועברת למורה.
+
+misconception_redirects:
+  M-01: לפני שמסיקים שהתדר ירד, כדאי לבדוק מה הווסת מדווח. איזה ערוץ מראה את תדר היציאה?
+  M-02: ערוץ ריק הוא מדידה חסרה. מה עשו הערוצים השכנים באותן שניות?
+  M-03: מתי נמדד הערך שעליו אתם מתבססים? השוו את זמן המקור לשעון ההרצה.
+  M-05: פקודת התדר היא מה שביקשו מהווסת. מה הווסת מספק בפועל?
+  M-06: זרם הרשת נמדד בכניסת הווסת. איזה ערוץ מודד את הזרם שמגיע למנוע?

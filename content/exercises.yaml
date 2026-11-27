@@ -1,0 +1,154 @@
+# Student-facing exercise content (Brain 1 + Brain 3).
+# Nothing here may reveal the cause. The expected conclusion lives in answer_key.yaml,
+# which the student API never reads out.
+# status: approved = from the written lesson script; draft = awaiting teacher approval.
+
+knowledge_cards:
+  K-00:
+    title: מסלול האנרגיה בעמדה
+    body: >-
+      האנרגיה עוברת מהרשת החד־פאזית (220 וולט, 50 הרץ) לווסת, משם לשלושה מוליכי מוצא
+      למנוע, ומציר המנוע לעומס המכני. מדידה בכניסה ומדידה במוצא נמצאות במקומות שונים.
+      תדר הרשת אינו תדר המנוע.
+  K-01:
+    title: תדר, מהירות והחלקה
+    body: >-
+      התדר קובע את מהירות השדה המסתובב. במנוע בעל ארבעה קטבים השדה מסתובב ב־1,500 סל״ד
+      בתדר 50 הרץ וב־750 סל״ד בתדר 25 הרץ. הציר מסתובב מעט לאט יותר, וההפרש היחסי נקרא החלקה.
+    formula: "n_s = 120·f / p      s = (n_s − n) / n_s"
+  K-02:
+    title: עומס, מומנט וזרם
+    body: >-
+      כשמומנט הבלימה גדל, המנוע צריך לפתח יותר מומנט. בתנאים דומים זרם המנוע עולה בדרך כלל
+      וההחלקה גדלה. השינוי במהירות תלוי גם בשיטת הבקרה של הווסת.
+  K-03:
+    title: איכות מדידה
+    body: >-
+      תא ריק הוא דגימה חסרה, ולא אפס. ערך שמוצג שוב עם זמן מקור ישן מתאר רגע קודם.
+      ערך קבוע עם דגימות טריות יכול לתאר מצב יציב תקין.
+    formula: "age = t_run − t_source"
+  K-04:
+    title: הספק ציר ותלות בין ראיות
+    body: >-
+      הספק הציר מחושב מהמומנט ומהמהירות. לפי 370 וואט ו־1,370 סל״ד, המומנט הנקוב המחושב
+      הוא כ־2.58 ניוטון־מטר. מומנט והספק שחושב ממנו הם ראיה אחת, לא שתיים.
+    formula: "P = T · n · 2π / 60"
+
+hypotheses:
+  H-FREQ: תדר היציאה השתנה
+  H-CMD: פקודת התדר שונתה
+  H-LOAD: מומנט העומס השתנה
+  H-OVERLOAD: עומס מעל הנקוב
+  H-SUPPLY: שינוי ברשת ההזנה
+  H-MISSING: ערוץ חסר
+  H-STALE: קריאה ישנה
+  H-INSUFFICIENT: אין די ראיות
+
+exercises:
+  EX-01:
+    title: האטה בציר
+    subtitle: עומס או תדר
+    status: approved
+    goal: להבחין בעזרת מדידות בין שינוי עומס לשינוי בתדר הווסת.
+    recording: E03
+    stop_s: 22
+    windows: {before: [0, 10], after: [17, 22], recheck: [23, 39]}
+    cards: [K-00, K-01, K-02]
+    check:
+      question: מהי המהירות הסינכרונית של המנוע בתדר 25 הרץ?
+      choices: ["750 סל״ד", "1,370 סל״ד", "1,500 סל״ד"]
+      highlight_card: K-01
+    initial_channels: [speed_rpm]
+    openable_channels: [f_set_hz, f_drive_hz, torque_nm, i_u_rms_a, i_v_rms_a, i_w_rms_a, grid_v_rms_v, grid_i_rms_a, grid_f_hz, grid_p_active_w]
+    predict:
+      prompt: בעוד רגע ישתנה משהו בעמדה ומהירות הציר תושפע. מה לדעתך יקרה לכל אחד מהערוצים?
+      channels: [speed_rpm, f_drive_hz, torque_nm]
+    observe_prompt: צפו בהקלטה. מה קורה למהירות הציר?
+    hypothesis_options: [H-FREQ, H-LOAD, H-CMD, H-SUPPLY, H-INSUFFICIENT]
+    hints:
+      - האם מהירות הציר לבדה מספיקה כדי להכריע? איזו השערה נוספת מתאימה לשינוי?
+      - בחר קריאה של תדר היציאה לפי דיווח הווסת. מה היה ערכה לפני השינוי ואחריו?
+      - השווה מומנט באותם חלונות. איזה הסבר מתאים לשני הערוצים?
+    recheck_prompt: ההקלטה ממשיכה עד שנייה 39. בדקו חלון חדש אחרי העצירה. האם המסקנה שלכם עדיין מחזיקה?
+    exit_question: אם תדר היציאה נשאר 50 הרץ, האם מהירות הציר עדיין יכולה להשתנות? הסבר בעזרת מושג ההחלקה.
+
+  EX-02:
+    title: ערוץ זרם חסר
+    subtitle: פער בנתונים
+    status: draft
+    goal: להבחין בין תקלה פיזית לבין חוסר בנתונים.
+    recording: E01
+    stop_s: 20
+    windows: {before: [0, 11], after: [12, 20], recheck: [21, 39]}
+    cards: [K-03]
+    check:
+      question: ערוץ זרם ריק במשך 10 שניות. האם אפשר להסיק שהזרם בפאזה היה אפס?
+      choices: ["כן", "לא", "רק אם גם שאר הזרמים אפס"]
+      highlight_card: K-03
+    initial_channels: [i_u_rms_a, i_v_rms_a, i_w_rms_a]
+    openable_channels: [speed_rpm, torque_nm, f_drive_hz, grid_v_rms_v, grid_i_rms_a, grid_f_hz]
+    predict:
+      prompt: אם פאזה אחת הייתה מתנתקת, מה היה קורה לערוצים האלה?
+      channels: [i_u_rms_a, i_w_rms_a, speed_rpm]
+    observe_prompt: צפו בזרמי הקו. מה קורה בערוץ V?
+    hypothesis_options: [H-MISSING, H-LOAD, H-SUPPLY, H-INSUFFICIENT]
+    hints:
+      - אילו ערוצים ממשיכים להתעדכן באותן שניות?
+      - מה מציין דגל האיכות של ערוץ V?
+      - השווה את זרמי U ו־W לפני הפער ובמהלכו. האם יש סימן לשינוי פיזי?
+    recheck_prompt: ההקלטה ממשיכה. מה קורה לערוץ V אחרי שנייה 21?
+    exit_question: למה אסור להתייחס לתא ריק כאל אפס?
+
+  EX-03:
+    title: מהירות ישנה
+    subtitle: גיל המדידה
+    status: draft
+    goal: לבדוק מתי נמדד ערך לפני שמסיקים ממנו.
+    recording: E02
+    stop_s: 18
+    windows: {before: [0, 9], after: [10, 18], recheck: [19, 39]}
+    cards: [K-01, K-03]
+    check:
+      question: ערך שמוצג שוב עם זמן מקור ישן. מה הוא מתאר?
+      choices: ["את הרגע הנוכחי", "רגע קודם", "תקלה במנוע"]
+      highlight_card: K-03
+    initial_channels: [speed_rpm, f_drive_hz]
+    openable_channels: [f_set_hz, torque_nm, i_u_rms_a, i_v_rms_a, i_w_rms_a]
+    predict:
+      prompt: הווסת מעלה את התדר. מה צפוי לקרות?
+      channels: [speed_rpm, f_drive_hz]
+    observe_prompt: צפו בתדר ובמהירות. האם הם משתנים יחד?
+    hypothesis_options: [H-STALE, H-LOAD, H-FREQ, H-INSUFFICIENT]
+    hints:
+      - מתי נמדדה המהירות שמוצגת?
+      - השווה את זמן המקור של הסל״ד לשעון ההרצה.
+      - מה עשה תדר היציאה באותן שניות, ומה היית מצפה מהמהירות אילו התעדכנה?
+    recheck_prompt: ההקלטה ממשיכה. מתי המהירות מתעדכנת שוב?
+    exit_question: איך בודקים שמספר שמוצג על המסך הוא עדכני?
+
+  EX-04:
+    title: עומס יתר
+    subtitle: השוואה לערכי לוחית
+    status: draft
+    goal: להשוות מדידה לערכים הנקובים ולזהות חריגה.
+    recording: E04
+    stop_s: 20
+    windows: {before: [0, 9], after: [15, 20], recheck: [21, 39]}
+    cards: [K-02, K-04]
+    check:
+      question: מהו המומנט הנקוב המחושב של המנוע?
+      choices: ["0.65 N·m", "2.58 N·m", "1.17 N·m"]
+      highlight_card: K-04
+    initial_channels: [torque_nm, i_u_rms_a, i_v_rms_a, i_w_rms_a]
+    openable_channels: [speed_rpm, motor_temp_c, f_drive_hz, grid_i_rms_a]
+    predict:
+      prompt: העומס עולה בהדרגה. מה יקרה לזרמים ולמהירות?
+      channels: [i_u_rms_a, torque_nm, speed_rpm]
+    observe_prompt: צפו במומנט ובזרמים. עד היכן הם מגיעים?
+    hypothesis_options: [H-OVERLOAD, H-LOAD, H-FREQ, H-INSUFFICIENT]
+    hints:
+      - לאיזה ערך נקוב אפשר להשוות את הזרם?
+      - השווה את שלושת הזרמים לזרם מלוחית המנוע.
+      - השווה גם את המומנט לערך הנקוב המחושב, ובדוק מה קורה בהמשך ההקלטה.
+    recheck_prompt: ההקלטה ממשיכה. מה קורה אחרי שנייה 25?
+    exit_question: למה חשוב להשוות זרם לערך מלוחית המנוע ולא רק לערך הקודם?
