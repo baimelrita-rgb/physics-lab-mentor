@@ -194,3 +194,4 @@ a.picker-item { color: inherit; text-decoration: none; }
 .mon-table td { padding: 6px 8px; border-bottom: 1px solid #EEF1F4; }
 .mon-group { font-weight: 700; background: var(--chip); }
 .mon-val { font-weight: 600; text-align: end; }
+.t-export { display: inline-flex; align-items: center; color: var(--text); text-decoration: none; }

@@ -37,7 +37,7 @@ export type Card = {
   id: string; label: string; index: number; state: string; stage: string; step: number;
   seconds_in_state: number; paused: boolean; hypothesis: string | null; hypothesis_label: string | null;
   hints_used: number; quota: number; flag: string | null; urgency: number; alerts: Alert[];
-  rubric: (number | null)[]; total: number;
+  rubric: (number | null)[]; total: number; confirmed: boolean;
 };
 export type Live = {
   lesson: { id: string; code: string; exercise_id: string; title: string; subtitle: string; status: string; stop_s: number; elapsed: number };
@@ -53,6 +53,7 @@ export type Detail = {
   attempts: { text: string; outcome: string; message: string; passed: boolean; misconception: string | null; missing: string[] }[];
   exit_answer: string | null; rubric: (number | null)[]; rubric_aspects: string[];
   asks: { q: string; a: string; intent: string; source: string; state: string }[];
+  confirmed_scores: number[] | null; teacher_note: string;
   hints: { level: number; text: string; by: string }[];
   timeline: { t: number; state: string; type: string; [k: string]: unknown }[];
 };
@@ -99,6 +100,7 @@ export const teacherApi = {
   live: (lid: string) => call<Live>("GET", `/teacher/lessons/${lid}`),
   lessonAction: (lid: string, action: "pause" | "resume" | "close") => call<Live>("POST", `/teacher/lessons/${lid}/${action}`),
   detail: (sid: string) => call<Detail>("GET", `/teacher/sessions/${sid}`),
+  scores: (sid: string, scores: number[], note: string) => call<Detail>("POST", `/teacher/sessions/${sid}/scores`, { scores, note }),
   action: (sid: string, action: "pause" | "resume" | "hint" | "message", text?: string) =>
     call<Detail>("POST", `/teacher/sessions/${sid}/${action}`, text !== undefined ? { text } : undefined),
 };

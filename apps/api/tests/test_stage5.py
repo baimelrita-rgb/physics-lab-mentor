@@ -77,3 +77,21 @@ def test_frequency_noise_around_50hz_is_not_a_violation():
     for i in range(6, 10):
         st.ingest(fr(i, f_drive_hz=([55.0] * 5, [0] * 5)))
     assert {r["id"]: r["state"] for r in st.monitor()["rules"]}["R-MOT-03"] == "stop"
+
+
+def test_teacher_confirms_scores_and_exports_csv():
+    c = TestClient(appmod.app)
+    lid = c.post("/api/teacher/lessons", json={"exercise_id": "EX-01"}).json()["lesson"]["id"]
+    code = c.get(f"/api/teacher/lessons/{lid}").json()["lesson"]["code"]
+    sid = c.post("/api/join", json={"code": code, "label": "קבוצה ג"}).json()["id"]
+    assert c.post(f"/api/teacher/sessions/{sid}/scores", json={"scores": [2, 1, 3, 0]}).status_code == 422
+    d = c.post(f"/api/teacher/sessions/{sid}/scores", json={"scores": [2, 1, 1, 0], "note": "עבודה יפה"}).json()
+    assert d["confirmed_scores"] == [2, 1, 1, 0]
+    card = c.get(f"/api/teacher/lessons/{lid}").json()["cards"][0]
+    assert card["confirmed"] and card["total"] == 4
+    r = c.get(f"/api/teacher/lessons/{lid}/export.csv")
+    text = r.content.decode("utf-8")
+    assert text.startswith("﻿") and "קבוצה ג" in text and "עבודה יפה" in text
+    import csv, io
+    rows = list(csv.reader(io.StringIO(text.lstrip("﻿"))))
+    assert rows[1][rows[0].index("סה״כ")] == "4" and rows[1][rows[0].index("ציון אושר")] == "כן"

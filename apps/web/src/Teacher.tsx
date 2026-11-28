@@ -97,6 +97,7 @@ export function TeacherLive({ lessonId }: { lessonId: string }) {
           <div className="t-actions">
             <button className="secondary auto" onClick={async () => setLive(await teacherApi.lessonAction(lessonId, "pause"))}>השהה את כולם</button>
             <button className="primary" onClick={async () => setLive(await teacherApi.lessonAction(lessonId, "resume"))}>המשך לכולם</button>
+            <a className="secondary auto t-export" href={`/api/teacher/lessons/${lessonId}/export.csv`}>ייצוא ציונים</a>
           </div>
         </section>
 
@@ -131,12 +132,12 @@ export function TeacherLive({ lessonId }: { lessonId: string }) {
                   <tr key={c.id}>
                     <td className="b">{c.label}</td>
                     {c.rubric.map((v, i) => <td key={i} style={{ background: shade(v)[0], color: shade(v)[1] }}>{v ?? "—"}</td>)}
-                    <td className="b">{c.total}/8</td>
+                    <td className="b">{c.total}/8{c.confirmed ? " ✓" : ""}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <div className="muted sm">0 = טרם הודגם · 1 = עם רמז · 2 = עצמאי · — = עוד לא ניתן לשפוט</div>
+            <div className="muted sm">0 = טרם הודגם · 1 = עם רמז · 2 = עצמאי · — = עוד לא ניתן לשפוט · ✓ = אושר בידי המורה</div>
           </section>
           <section className="panel t-section side" aria-label="תפיסות שגויות">
             <div className="t-h">תפיסות שגויות בשיעור</div>
@@ -190,7 +191,7 @@ const EVENT_LABEL: Record<string, string> = {
   "prediction.submitted": "תחזית", "hypothesis.chosen": "השערה", "channel.opened": "פתיחת ערוץ",
   "channel.closed": "סגירת ערוץ", "reading.saved": "קריאה נשמרה", "hint.given": "רמז",
   "reason.evaluated": "נימוק", "exit.answered": "שאלת יציאה", "teacher.paused": "השהיה",
-  "teacher.resumed": "המשך", "teacher.message": "הודעת מורה", "student.asked": "שאלה למנטור",
+  "teacher.resumed": "המשך", "teacher.message": "הודעת מורה", "student.asked": "שאלה למנטור", "teacher.scored": "ציון אושר",
 };
 
 function DetailDrawer({ sid, onClose, refresh }: { sid: string; onClose: () => void; refresh: () => void }) {
@@ -204,10 +205,7 @@ function DetailDrawer({ sid, onClose, refresh }: { sid: string; onClose: () => v
         <div className="t-card-top"><div className="t-h">{d.label} · {d.stage}</div><button className="x big" onClick={onClose} aria-label="סגור">×</button></div>
         <div className="box"><div className="muted sm">מסקנה מצופה (למורה בלבד)</div><div>{d.expected.cause_label}. {d.expected.conclusion}</div></div>
 
-        <div className="t-h sm2">ציון מוצע</div>
-        <table className="t-rubric"><tbody>
-          {d.rubric_aspects.map((a, i) => <tr key={a}><td>{a}</td><td style={{ background: shade(d.rubric[i])[0], color: shade(d.rubric[i])[1] }}>{d.rubric[i] ?? "—"}</td></tr>)}
-        </tbody></table>
+        <ScoreEditor d={d} onSaved={(nd) => { setD(nd); refresh(); }} />
 
         <div className="t-h sm2">עבודת התלמידים</div>
         <div className="sm">תחזית: {d.prediction ? Object.entries(d.prediction.directions).map(([k, v]) => `${k} ${v === "up" ? "↑" : v === "down" ? "↓" : "="}`).join(" · ") + (d.prediction.text ? ` · ״${d.prediction.text}״` : "") : "—"}</div>
@@ -231,7 +229,7 @@ function DetailDrawer({ sid, onClose, refresh }: { sid: string; onClose: () => v
         )}
 
         <div className="t-h sm2">הודעה לעמדה</div>
-        <div className="t-msg">
+        <div className="t-msg t-send">
           <input value={msg} maxLength={200} onChange={(e) => setMsg(e.target.value)} placeholder="למשל: בדקו את תדר היציאה" />
           <button className="primary" disabled={!msg.trim()} onClick={async () => { setD(await teacherApi.action(sid, "message", msg)); setMsg(""); refresh(); }}>שלח</button>
         </div>
@@ -244,6 +242,37 @@ function DetailDrawer({ sid, onClose, refresh }: { sid: string; onClose: () => v
         </ol>
       </aside>
     </div>
+  );
+}
+
+function ScoreEditor({ d, onSaved }: { d: Detail; onSaved: (d: Detail) => void }) {
+  const [scores, setScores] = useState<number[]>(d.confirmed_scores ?? d.rubric.map((x) => x ?? 0));
+  const [note, setNote] = useState(d.teacher_note);
+  const [saved, setSaved] = useState(false);
+  return (
+    <>
+      <div className="t-h sm2">ציון {d.confirmed_scores ? "(אושר)" : "(מוצע, לאישור)"}</div>
+      <table className="t-rubric"><tbody>
+        {d.rubric_aspects.map((a, i) => (
+          <tr key={a}>
+            <td>{a}<div className="muted sm">הצעת המערכת: {d.rubric[i] ?? "—"}</div></td>
+            <td>
+              <div className="chips">
+                {[0, 1, 2].map((v) => (
+                  <button key={v} className={`chip-btn sm ${scores[i] === v ? "sel" : ""}`}
+                          onClick={() => { const n = [...scores]; n[i] = v; setScores(n); setSaved(false); }}>{v}</button>
+                ))}
+              </div>
+            </td>
+          </tr>
+        ))}
+      </tbody></table>
+      <div className="t-msg">
+        <input value={note} maxLength={300} placeholder="הערה (לא חובה)" onChange={(e) => { setNote(e.target.value); setSaved(false); }} />
+        <button className="primary" onClick={async () => { onSaved(await teacherApi.scores(d.id, scores, note)); setSaved(true); }}>אשר ציון</button>
+      </div>
+      {saved && <div className="note ok sm">הציון נשמר: {scores.reduce((a, b) => a + b, 0)}/8</div>}
+    </>
   );
 }
 

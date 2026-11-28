@@ -144,12 +144,12 @@ def card(s: Session, index: int) -> dict:
     urgency = min([URGENCY.get(a["kind"], 2) for a in al], default=3)
     hyp = content.exercises()["hypotheses"].get(s.hypothesis) if s.hypothesis else None
     flag = {-1: "בטיחות", 0: "תקוע", 1: "רמז 3"}.get(urgency) or ("הושלם" if s.state == "CLOSED" else None)
-    scores = rubric(s)
+    scores = s.teacher_scores or rubric(s)
     return {
         "id": s.id, "label": s.label, "index": index, "state": s.state, "stage": STATE_LABEL[s.state],
         "step": STEP_OF[s.state], "seconds_in_state": int(s.time_in_state()), "paused": s.paused,
         "hypothesis": s.hypothesis, "hypothesis_label": hyp, "hints_used": s.hints_used, "quota": HINT_QUOTA,
-        "flag": flag, "urgency": urgency, "alerts": al, "rubric": scores,
+        "flag": flag, "urgency": urgency, "alerts": al, "rubric": scores, "confirmed": s.teacher_scores is not None,
         "total": sum(x for x in scores if x is not None),
     }
 
@@ -203,6 +203,40 @@ def detail(s: Session) -> dict:
         "readings": s.readings, "attempts": [{k: v for k, v in a.items() if k != "detail"} | {"missing": a["detail"]["missing_evidence"]}
                                               for a in s.attempts],
         "exit_answer": s.exit_answer, "rubric": rubric(s), "rubric_aspects": RUBRIC,
+        "confirmed_scores": s.teacher_scores, "teacher_note": s.teacher_note,
         "asks": s.asks, "hints": [{"level": i + 1, "text": t, "by": s.hint_sources[i]} for i, t in enumerate(s.hint_texts)],
         "timeline": [event(e) for e in s.events],
     }
+
+
+def confirm_scores(s: Session, scores: list, note: str = ""):
+    if len(scores) != len(RUBRIC) or any(x not in (0, 1, 2) for x in scores):
+        raise ValueError("four scores, each 0, 1 or 2")
+    s.teacher_scores = list(scores)
+    s.teacher_note = note.strip()[:300]
+    s._log("teacher.scored", scores=s.teacher_scores, suggested=rubric(s), note=s.teacher_note)
+
+
+def export_csv(lesson: Lesson, sessions: dict[str, Session]) -> str:
+    """Lesson grades as CSV (UTF-8 with BOM so Excel shows Hebrew)."""
+    import csv
+    import io
+    hyp = content.exercises()["hypotheses"]
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["עמדה", "תרגיל", "שלב אחרון", "השערה", "רמזים", "קריאות", "ניסיונות נימוק",
+                *[f"{a} (מוצע)" for a in RUBRIC], *[f"{a} (מאושר)" for a in RUBRIC],
+                "סה״כ", "ציון אושר", "תפיסות שגויות", "שאלת יציאה", "הערת מורה"])
+    for sid in lesson.session_ids:
+        s = sessions.get(sid)
+        if not s:
+            continue
+        sug = rubric(s)
+        final = s.teacher_scores or sug
+        w.writerow([s.label, s.exercise_id, STATE_LABEL[s.state], hyp.get(s.hypothesis, "") if s.hypothesis else "",
+                    s.hints_used, len(s.readings), len(s.attempts),
+                    *["" if x is None else x for x in sug],
+                    *(s.teacher_scores or [""] * len(RUBRIC)),
+                    sum(x for x in final if x is not None), "כן" if s.teacher_scores else "לא",
+                    " ".join(misconceptions_of(s)), s.exit_answer or "", s.teacher_note])
+    return "\ufeff" + buf.getvalue()

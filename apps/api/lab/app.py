@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -57,6 +57,11 @@ class Join(BaseModel):
 
 class NewLesson(BaseModel):
     exercise_id: str
+
+
+class Scores(BaseModel):
+    scores: list[int]
+    note: str = ""
 
 
 class Choice(BaseModel):
@@ -231,6 +236,26 @@ def station_monitor(station_id: str, x_teacher_token: str | None = Header(None))
     if station_id not in STATIONS:
         raise HTTPException(404, "station has not connected yet")
     return STATIONS[station_id].monitor()
+
+
+@app.get("/api/teacher/lessons/{lid}/export.csv")
+def export(lid: str, x_teacher_token: str | None = Header(None), token: str | None = None):
+    _teacher(x_teacher_token or token)
+    lesson = _lesson(lid)
+    return Response(teacher.export_csv(lesson, SESSIONS), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="lesson-{lesson.code}-grades.csv"'})
+
+
+@app.post("/api/teacher/sessions/{sid}/scores")
+def confirm(sid: str, body: Scores, x_teacher_token: str | None = Header(None)):
+    _teacher(x_teacher_token)
+    s = _session(sid)
+    try:
+        teacher.confirm_scores(s, body.scores, body.note)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    STORE.save_session(s)
+    return teacher.detail(s)
 
 
 @app.get("/api/teacher/sessions/{sid}")

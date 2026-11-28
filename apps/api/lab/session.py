@@ -68,6 +68,8 @@ class Session:
     asks: list[dict] = field(default_factory=list)          # free questions and mentor replies
     mentor_reply: dict | None = None
     tutor: object = None                                    # lab.tutor.Tutor, or None for static texts only
+    teacher_scores: list | None = None                      # rubric confirmed by the teacher (0-2 per aspect)
+    teacher_note: str = ""
     channel_opens: list[dict] = field(default_factory=list)  # {channel, hints_used}
     events: list[dict] = field(default_factory=list)          # timeline for the teacher
     state_entered: float = 0.0
