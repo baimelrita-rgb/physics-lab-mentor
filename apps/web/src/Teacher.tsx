@@ -25,6 +25,7 @@ export function TeacherHome() {
   const open = async (lid: string) => { await teacherApi.openLesson(lid); location.href = `/teacher/${lid}`; };
   const [all, setAll] = useState(false);
   const open_ = lessons.filter((l) => !l.closed).reverse();
+  const ended = lessons.filter((l) => l.closed).reverse().slice(0, 10);
   const mine = all ? open_ : open_.slice(0, 5);
   return (
     <div className="t-page">
@@ -49,6 +50,20 @@ export function TeacherHome() {
           </div>
           {open_.length > 5 && <button className="more-btn" onClick={() => setAll(!all)}>{all ? "הצגת 5 האחרונים" : `הצגת כל ${open_.length} השיעורים`}</button>}
         </section>
+        {ended.length > 0 && (
+          <details className="panel t-section t-ended">
+            <summary className="t-h">שיעורים שהסתיימו ({ended.length})</summary>
+            <div className="picker-list">
+              {ended.map((l) => (
+                <a key={l.id} className="picker-item link-btn" href={`/teacher/${l.id}`}>
+                  <div><b>{l.number} · {l.title}</b>
+                    <div className="muted sm">{[l.class_name, l.date].filter(Boolean).join(" · ") || "ללא כיתה"} · {l.joined} קבוצות</div></div>
+                  <span className="chip okc">לסיכום</span>
+                </a>
+              ))}
+            </div>
+          </details>
+        )}
         <section className="panel t-section">
           <div className="t-h">פתיחה מהירה</div>
           <p className="muted">פתיחת שיעור עם ברירות המחדל: 3 רמזים, שאלה פתוחה, ללא ניכוי. המערכת תיצור קוד שיעור, והעמדות יצטרפו איתו.</p>
@@ -155,20 +170,28 @@ export function TeacherLive({ lessonId }: { lessonId: string }) {
 
         <section className="panel t-lesson" aria-label="תרגיל פעיל">
           <div>
-            <div className="muted sm">תרגיל פעיל</div>
+            <div className="muted sm">{L.closed ? "תרגיל" : "תרגיל פעיל"}</div>
             <div className="t-ex">{L.exercise_id} · {L.title}: {L.subtitle}</div>
           </div>
-          <div className="t-code">
-            <div className="muted sm">קוד שיעור</div>
-            <div className="t-code-n" dir="ltr">{L.code}</div>
-          </div>
-          <div className="muted sm">עצירה בשנייה {L.stop_s} · {mmss(L.elapsed)} מתחילת השיעור · הצטרפות: <span dir="ltr">{joinUrl}</span></div>
+          {!L.closed ? <>
+            <div className="t-code">
+              <div className="muted sm">קוד שיעור</div>
+              <div className="t-code-n" dir="ltr">{L.code}</div>
+            </div>
+            <div className="muted sm">עצירה בשנייה {L.stop_s} · {mmss(L.elapsed)} מתחילת השיעור · הצטרפות: <span dir="ltr">{joinUrl}</span></div>
+          </> : <div className="muted sm">השיעור הסתיים אחרי {mmss(L.elapsed)}. הקוד כבר לא פעיל.</div>}
           <div className="t-actions">
-            <button className="secondary auto" onClick={async () => setLive(await teacherApi.lessonAction(lessonId, "pause"))}>השהה את כולם</button>
-            <button className="primary" onClick={async () => setLive(await teacherApi.lessonAction(lessonId, "resume"))}>המשך לכולם</button>
+            {!L.closed && <>
+              <button className="secondary auto" onClick={async () => setLive(await teacherApi.lessonAction(lessonId, "pause"))}>השהה את כולם</button>
+              <button className="primary" onClick={async () => setLive(await teacherApi.lessonAction(lessonId, "resume"))}>המשך לכולם</button>
+            </>}
             <a className="secondary auto t-export" href={`/api/teacher/lessons/${lessonId}/export.csv`}>ייצוא ציונים</a>
+            {!L.closed && <button className="secondary auto t-end" onClick={async () => {
+              if (confirm("לסיים את השיעור? קבוצות חדשות לא יוכלו להצטרף, וקבוצות שעובדות עכשיו יוכלו לסיים את התרגיל.")) setLive(await teacherApi.lessonAction(lessonId, "close"));
+            }}>סיום שיעור</button>}
           </div>
         </section>
+        {L.closed && <LessonSummary live={live} />}
 
         <div className="t-row">
           <section className="t-cards-wrap" aria-label="עמדות ותלמידים">
@@ -225,6 +248,30 @@ export function TeacherLive({ lessonId }: { lessonId: string }) {
       </div>
       {open && <DetailDrawer sid={open} onClose={() => setOpen(null)} refresh={refresh} />}
     </div>
+  );
+}
+
+function LessonSummary({ live }: { live: Live }) {
+  const done = live.cards.filter((c) => c.state === "CLOSED").length;
+  const working = live.cards.filter((c) => c.state !== "CLOSED").length;
+  const confirmed = live.cards.filter((c) => c.confirmed).length;
+  const avg = live.cards.length ? live.cards.reduce((a, c) => a + c.total, 0) / live.cards.length : 0;
+  const top = [...live.misconceptions].sort((a, b) => b.count - a.count).filter((m) => m.count > 0).slice(0, 3);
+  return (
+    <section className="panel t-section t-summary" aria-label="סיכום שיעור">
+      <div className="t-h">השיעור הסתיים · סיכום</div>
+      <div className="t-sum-grid">
+        <div><b>{done}</b><span>קבוצות סיימו</span></div>
+        <div><b>{working}</b><span>עדיין עובדות (יכולות לסיים)</span></div>
+        <div><b>{avg.toFixed(1)}/8</b><span>ממוצע מחוון</span></div>
+        <div><b>{confirmed}/{live.cards.length}</b><span>ציונים אושרו</span></div>
+      </div>
+      {top.length > 0 && <div className="sm">תפיסות שגויות בשיעור: {top.map((m) => `${m.label} (${m.count})`).join(" · ")}</div>}
+      <div className="t-actions">
+        {live.lesson.class_name && <a className="secondary auto link-btn" href={`/teacher/class`}>לסיכום הכיתה</a>}
+        <a className="secondary auto link-btn" href="/teacher">למסך הבית</a>
+      </div>
+    </section>
   );
 }
 

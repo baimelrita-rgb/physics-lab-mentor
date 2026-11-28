@@ -203,7 +203,35 @@ def _detail(s: Session) -> dict:
     return out
 
 
+# Lesson lifecycle (MVP package 2). A lesson ends when the teacher ends it, or automatically
+# LESSON_HOURS after it started. Ending stops new joins and frees the code; groups that are
+# still working may finish their exercise (decision of the project owner).
+LESSON_HOURS = float(os.environ.get("LESSON_HOURS", "4"))
+
+
+def _close(lesson: Lesson, when: float | None = None):
+    lesson.closed, lesson.closed_at = True, when or lesson.clock()
+    STORE.save_lesson(lesson)
+
+
+def _expire_lessons():
+    for lesson in list(LESSONS.values()):
+        if not lesson.closed and not lesson.planned and lesson.clock() - lesson.started > LESSON_HOURS * 3600:
+            _close(lesson, lesson.started + LESSON_HOURS * 3600)
+
+
+def _new_code() -> str:
+    """Join codes are unique among lessons that are open or planned (QA finding F-02)."""
+    import secrets
+    taken = {l.code for l in LESSONS.values() if not l.closed}
+    while True:
+        code = f"{secrets.randbelow(1_000_000):06d}"
+        if code not in taken:
+            return code
+
+
 def _open_lesson(code: str) -> Lesson:
+    _expire_lessons()
     lesson = next((l for l in LESSONS.values()
                    if l.code == code.strip() and not l.closed and not l.planned), None)
     if not lesson:
@@ -348,6 +376,7 @@ def create_lesson(body: NewLesson, user: str = Depends(require_teacher)):
                     class_name=body.class_name.strip()[:40], date=body.date[:10], stations=body.stations,
                     hint_quota=body.hint_quota, allow_ask=body.allow_ask, deduction=body.deduction,
                     planned=body.planned)
+    lesson.code = _new_code()
     LESSONS[lesson.id] = lesson
     STORE.save_lesson(lesson)
     return _live(lesson, SESSIONS)
@@ -363,6 +392,7 @@ def teacher_exercises(user: str = Depends(require_teacher)):
 
 @app.get("/api/teacher/lessons")
 def list_lessons(user: str = Depends(require_teacher)):
+    _expire_lessons()
     return [{"id": l.id, "code": l.code, "exercise_id": l.exercise_id, "number": exercise_number(l.exercise_id),
              "title": content.exercises()["exercises"][l.exercise_id]["title"],
              "joined": len(l.session_ids), "stations": l.stations, "class_name": l.class_name, "date": l.date,
@@ -551,6 +581,7 @@ def prep_preview(exercise_id: str, user: str = Depends(require_teacher)):
 
 @app.get("/api/teacher/lessons/{lid}")
 def lesson_live(lid: str, user: str = Depends(require_teacher)):
+    _expire_lessons()
     return _live(_lesson(lid, user), SESSIONS)
 
 
@@ -573,9 +604,8 @@ def lesson_action(lid: str, action: str, user: str = Depends(require_teacher)):
             elif action == "resume":
                 SESSIONS[sid].resume()
             STORE.save_session(SESSIONS[sid])
-    if action == "close":
-        lesson.closed = True
-        STORE.save_lesson(lesson)
+    if action == "close" and not lesson.closed:
+        _close(lesson)
     return _live(lesson, SESSIONS)
 
 

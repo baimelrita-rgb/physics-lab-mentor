@@ -99,7 +99,7 @@ export type Card = {
   rubric: (number | null)[]; total: number; confirmed: boolean;
 };
 export type Live = {
-  lesson: { id: string; code: string; exercise_id: string; title: string; subtitle: string; status: string; stop_s: number; elapsed: number };
+  lesson: { id: string; code: string; exercise_id: string; title: string; subtitle: string; status: string; stop_s: number; elapsed: number; closed: boolean; class_name?: string };
   cards: Card[]; alerts: Alert[]; rubric_aspects: string[];
   misconceptions: { id: string; label: string; count: number }[]; steps: string[];
 };

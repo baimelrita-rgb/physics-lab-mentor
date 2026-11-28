@@ -48,6 +48,7 @@ class Lesson:
     allow_ask: bool = True
     deduction: str = "none"     # "none" | "per_hint": one point off the total per hint the student asked for
     planned: bool = False       # saved for later; stations cannot join until the teacher opens it
+    closed_at: float = 0.0      # when the lesson ended (by the teacher or automatically)
 
     def __post_init__(self):
         self.started = self.clock()
@@ -181,7 +182,8 @@ def live(lesson: Lesson, sessions: dict[str, Session]) -> dict:
     return {
         "lesson": {"id": lesson.id, "code": lesson.code, "exercise_id": lesson.exercise_id,
                    "title": ex["title"], "subtitle": ex["subtitle"], "status": ex["status"],
-                   "stop_s": ex["stop_s"], "elapsed": int(lesson.clock() - lesson.started)},
+                   "stop_s": ex["stop_s"], "elapsed": int((lesson.closed_at or lesson.clock()) - lesson.started),
+                   "closed": lesson.closed},
         "cards": cards,
         "alerts": [dict(a, station=c["label"], session=c["id"]) for c in cards for a in c["alerts"]],
         "rubric_aspects": RUBRIC,

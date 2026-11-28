@@ -422,3 +422,12 @@ a.secondary.link-btn { color: var(--text); }
 .ct-history { margin: 0; padding-inline-start: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
 .ct-savebar { position: fixed; bottom: 0; inset-inline: 0; background: #23292F; color: #fff; display: flex; gap: 12px; align-items: center; justify-content: center; padding: 10px 16px; z-index: 20; flex-wrap: wrap; }
 .ct-savebar .secondary { color: var(--text); }
+/* Lesson lifecycle */
+.t-end { border-color: #E8A5A5; color: #A12B2B; }
+.t-summary { border: 2px solid var(--primary); }
+.t-sum-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.t-sum-grid div { background: #F3F5F8; border-radius: 10px; padding: 10px 14px; display: flex; flex-direction: column; gap: 2px; }
+.t-sum-grid b { font-size: 22px; }
+.t-sum-grid span { font-size: 13px; color: var(--muted); }
+.t-ended summary { cursor: pointer; }
+.t-ended[open] summary { margin-bottom: 10px; }
