@@ -243,17 +243,18 @@ def export_csv(lesson: Lesson, sessions: dict[str, Session]) -> str:
     w.writerow(["עמדה", "תרגיל", "שלב אחרון", "השערה", "רמזים", "קריאות", "ניסיונות נימוק",
                 *[f"{a} (מוצע)" for a in RUBRIC], *[f"{a} (מאושר)" for a in RUBRIC],
                 "ניכוי רמזים", "סה״כ", "ציון אושר", "תפיסות שגויות", "שאלת יציאה", "הערת מורה"])
+    from .security import csv_safe
     for sid in lesson.session_ids:
         s = sessions.get(sid)
         if not s:
             continue
         sug = rubric(s)
         final = s.teacher_scores or sug
-        w.writerow([s.label, s.exercise_id, STATE_LABEL[s.state], hyp.get(s.hypothesis, "") if s.hypothesis else "",
+        w.writerow([csv_safe(x) for x in [s.label, s.exercise_id, STATE_LABEL[s.state], hyp.get(s.hypothesis, "") if s.hypothesis else "",
                     s.hints_used, len(s.readings), len(s.attempts),
                     *["" if x is None else x for x in sug],
                     *(s.teacher_scores or [""] * len(RUBRIC)),
                     deduction(s, lesson.deduction),
                     max(0, sum(x for x in final if x is not None) - deduction(s, lesson.deduction)), "כן" if s.teacher_scores else "לא",
-                    " ".join(misconceptions_of(s)), s.exit_answer or "", s.teacher_note])
+                    " ".join(misconceptions_of(s)), s.exit_answer or "", s.teacher_note]])
     return "\ufeff" + buf.getvalue()

@@ -9,5 +9,7 @@ if [ ! -f apps/web/dist/index.html ] || [ -n "$(find apps/web/src -newer apps/we
   (cd apps/web && npm install --no-audit --no-fund && npm run build)
 fi
 cd apps/api
+# Local runs: open demo mode and plain http cookies. A real server sets DEMO=0 and COOKIE_SECURE=1 (the default).
+export DEMO="${DEMO:-1}" COOKIE_SECURE="${COOKIE_SECURE:-0}"
 echo "Lab mentor: http://localhost:${PORT:-8000}  (Claude: $([ -n "${ANTHROPIC_API_KEY:-}" ] && echo on || echo off, approved texts only))"
 exec python3 -m uvicorn lab.app:app --host "${HOST:-127.0.0.1}" --port "${PORT:-8000}"

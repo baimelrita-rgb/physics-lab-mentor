@@ -11,6 +11,7 @@ const HINT_STATES = READING_STATES;
 export function Station({ id }: { id: string }) {
   const [v, setV] = useState<View | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [foreign, setForeign] = useState(false);
 
   const act = useCallback(async (p: Promise<View>) => {
     try { setV(await p); setError(null); }
@@ -19,12 +20,21 @@ export function Station({ id }: { id: string }) {
 
   useEffect(() => {
     let alive = true;
-    const tick = async () => { try { const nv = await api.get(id); if (alive) setV(nv); } catch { /* keep last view */ } };
+    const tick = async () => {
+      try { const nv = await api.get(id); if (alive) { setV(nv); setForeign(false); } }
+      catch (e) { if (e instanceof ApiError && e.status === 403) setForeign(true); /* else keep last view */ }
+    };
     tick();
     const h = setInterval(tick, 700);
     return () => { alive = false; clearInterval(h); };
   }, [id]);
 
+  if (foreign) return (
+    <div className="loading foreign">
+      <b>העמדה הזו פתוחה בטאבלט אחר.</b>
+      <span>כל קבוצה עובדת מהטאבלט שבו הצטרפה. כדי לעבור לטאבלט הזה, בקשו מהמורה ״העבר לטאבלט אחר״ ורעננו את הדף.</span>
+    </div>
+  );
   if (!v) return <div className="loading">טוען…</div>;
   const ex = v.exercise;
 

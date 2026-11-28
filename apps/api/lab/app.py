@@ -21,6 +21,8 @@ from .session import GuardError, Session, exercise_number
 from .teacher import Lesson
 from .auth import COOKIE, DEMO_USER, Auth, AuthError
 from .store import Store
+from .security import (SESSION_COOKIE, RateLimiter, StationTokens, client_ip, cookie_secure, demo_mode,
+                       new_token)
 from .tutor import Tutor
 
 app = FastAPI(title="Lab Mentor")
@@ -52,6 +54,43 @@ def session_lock(sid: str):
         lock = _LOCKS[sid]
     with lock:
         yield
+
+
+# ---------- access protection (MVP package 3) ----------
+JOIN_FAILS = RateLimiter(20, 600)        # wrong lesson codes per IP per 10 minutes
+LOGIN_FAILS = RateLimiter(20, 600)       # wrong passwords per IP per 10 minutes
+ANON_SESSIONS = RateLimiter(30, 3600)    # practice sessions without a lesson, per IP per hour
+
+
+def _set_group_cookie(resp, s: Session):
+    resp.set_cookie(SESSION_COOKIE, s.token, path=f"/api/sessions/{s.id}", httponly=True, samesite="lax",
+                    secure=cookie_secure(), max_age=12 * 3600)
+    return resp
+
+
+@app.middleware("http")
+async def guard(request: Request, call_next):
+    path = request.url.path
+    # Requests from another site's page are refused (CSRF); the edge agent is not a browser.
+    if request.method in ("POST", "PUT", "PATCH", "DELETE") and path.startswith("/api/") \
+            and not path.startswith("/api/edge/"):
+        origin = request.headers.get("origin")
+        if origin:
+            from urllib.parse import urlparse
+            if urlparse(origin).netloc != request.headers.get("host"):
+                return JSONResponse({"detail": "cross-site request refused"}, status_code=403)
+    # A group's session answers only to the tablet that holds its token (QA finding F-05).
+    if path.startswith("/api/sessions/"):
+        sid = path.split("/")[3]
+        s = SESSIONS.get(sid)
+        if s is not None:
+            if s.token and request.cookies.get(SESSION_COOKIE) != s.token:
+                return JSONResponse({"detail": "this station belongs to another device"}, status_code=403)
+            if not s.token:                     # released by the teacher, or created before tokens: claim it
+                s.token = new_token()
+                STORE.save_session(s)
+                return _set_group_cookie(await call_next(request), s)
+    return await call_next(request)
 
 
 def _run(sid: str, fn):
@@ -153,7 +192,7 @@ def _new_session(exercise_id: str, label: str, lesson: Lesson | None = None, mem
     rec = resolve(RECORDINGS, ex["recording"]) if ex else None
     if not rec:
         raise HTTPException(404, "exercise or recording not available")
-    s = Session(exercise_id, rec, log_path=LOG, replay_speed=SPEED,
+    s = Session(exercise_id, rec, log_path=LOG, replay_speed=SPEED, token=new_token(),
                 label=label.strip()[:30] or "עמדה", lesson_id=lesson.id if lesson else None, tutor=TUTOR)
     if lesson:
         s.hint_quota, s.allow_ask = lesson.hint_quota, lesson.allow_ask
@@ -167,14 +206,35 @@ def _new_session(exercise_id: str, label: str, lesson: Lesson | None = None, mem
 
 
 @app.post("/api/sessions")
-def create_session(body: NewSession):
-    return _new_session(body.exercise_id, body.label).student_view()
+def create_session(body: NewSession, request: Request):
+    """Practice without a lesson: only in demo mode or for a logged-in teacher (QA finding F-07)."""
+    if not (AUTH.demo or AUTH.user_from_cookie(request.cookies.get(COOKIE))):
+        raise HTTPException(403, "practice without a lesson needs a teacher login")
+    ip = client_ip(request)
+    if ANON_SESSIONS.blocked(ip):
+        raise HTTPException(429, "too many practice sessions")
+    ANON_SESSIONS.hit(ip)
+    s = _new_session(body.exercise_id, body.label)
+    return _set_group_cookie(JSONResponse(s.student_view()), s)
 
 
 @app.post("/api/join")
-def join(body: Join):
-    lesson = _open_lesson(body.code)
-    return _new_session(lesson.exercise_id, body.label, lesson, _valid_members(lesson, body.members)).student_view()
+def join(body: Join, request: Request):
+    lesson = _code_lesson(body.code, request)
+    s = _new_session(lesson.exercise_id, body.label, lesson, _valid_members(lesson, body.members))
+    return _set_group_cookie(JSONResponse(s.student_view()), s)
+
+
+def _code_lesson(code: str, request: Request) -> Lesson:
+    """Lesson by code, with a limit on wrong codes per IP (QA finding F-04)."""
+    ip = client_ip(request)
+    if JOIN_FAILS.blocked(ip):
+        raise HTTPException(429, "too many wrong codes, try again in a few minutes")
+    try:
+        return _open_lesson(code)
+    except HTTPException:
+        JOIN_FAILS.hit(ip)
+        raise
 
 
 ROSTER = Roster(STORE.root)
@@ -247,9 +307,9 @@ def _valid_members(lesson: Lesson, ids: list[str]) -> list[str]:
 
 
 @app.get("/api/join/{code}")
-def join_info(code: str):
+def join_info(code: str, request: Request):
     """Names to tick on the join screen (anyone with the lesson code sees the class list)."""
-    lesson = _open_lesson(code)
+    lesson = _code_lesson(code, request)
     taken = {m for sid in lesson.session_ids if sid in SESSIONS for m in SESSIONS[sid].members}
     return {"class_name": lesson.class_name,
             "roster": [{"id": s["id"], "name": s["name"], "taken": s["id"] in taken}
@@ -258,12 +318,13 @@ def join_info(code: str):
 
 # ---------- edge (live station) ----------
 # Each edge agent authenticates with a device token. Set EDGE_TOKEN in production.
-EDGE_TOKEN = os.environ.get("EDGE_TOKEN", "dev-edge-token")
+# One token per station (tools/add_station.py); the demo token works only with DEMO=1 (F-06).
+STATION_TOKENS = StationTokens(STORE.root)
 STATIONS: dict[str, LiveStation] = {}
 
 
-def _device(token: str | None):
-    if token != EDGE_TOKEN:
+def _device(token: str | None, station_id: str):
+    if not STATION_TOKENS.valid(station_id, token):
         raise HTTPException(401, "device token required")
 
 
@@ -274,7 +335,7 @@ def _station(station_id: str) -> LiveStation:
 @app.post("/api/edge/stations/{station_id}/obs")
 def edge_obs(station_id: str, frames: list[dict] | dict, x_device_token: str | None = Header(None)):
     """One obs.v1 frame, or a list of them (an agent flushing its offline buffer)."""
-    _device(x_device_token)
+    _device(x_device_token, station_id)
     st = _station(station_id)
     accepted = 0
     for f in frames if isinstance(frames, list) else [frames]:
@@ -287,7 +348,7 @@ def edge_obs(station_id: str, frames: list[dict] | dict, x_device_token: str | N
 
 @app.post("/api/edge/stations/{station_id}/status")
 def edge_status(station_id: str, body: dict, x_device_token: str | None = Header(None)):
-    _device(x_device_token)
+    _device(x_device_token, station_id)
     _station(station_id).heartbeat(body)
     return {"ok": True}
 
@@ -335,15 +396,19 @@ class Login(BaseModel):
 
 
 @app.post("/api/auth/login")
-def login(body: Login):
+def login(body: Login, request: Request):
+    ip = client_ip(request)
+    if LOGIN_FAILS.blocked(ip):
+        raise HTTPException(429, "locked")
     try:
         cookie = AUTH.login(body.username, body.password)
     except AuthError as e:
+        LOGIN_FAILS.hit(ip)
         raise HTTPException(429 if str(e) == "locked" else 401, str(e))
     user = body.username.strip().lower()
     resp = JSONResponse({"user": user, "name": AUTH.name(user)})
     resp.set_cookie(COOKIE, cookie, max_age=12 * 3600, httponly=True, samesite="lax",
-                    secure=os.environ.get("COOKIE_SECURE") == "1", path="/")
+                    secure=cookie_secure(), path="/")
     return resp
 
 
@@ -648,8 +713,14 @@ def session_detail(sid: str, user: str = Depends(require_teacher)):
 @app.post("/api/teacher/sessions/{sid}/{action}")
 def session_action(sid: str, action: str, body: Text | None = None, user: str = Depends(require_teacher)):
     s = _teacher_session(sid, user)
-    if action not in ("pause", "resume", "hint", "message"):
+    if action not in ("pause", "resume", "hint", "message", "release"):
         raise HTTPException(404, "unknown action")
+    if action == "release":                     # the group moves to another tablet: next device claims it
+        with session_lock(sid):
+            s.token = ""
+            s._log("teacher.released_device")
+            STORE.save_session(s)
+        return _detail(s)
     with session_lock(sid):
         try:
             if action == "pause":
@@ -724,7 +795,8 @@ def ask(sid: str, body: Text):
 @app.get("/api/status")
 def status():
     return {"llm": TUTOR.live, "llm_configured": llm.enabled(), "model_phrase": llm.MODEL_PHRASE,
-            "model_classify": llm.MODEL_CLASSIFY, "recordings": sorted(RECORDINGS)}
+            "model_classify": llm.MODEL_CLASSIFY, "recordings": sorted(RECORDINGS),
+            "demo": AUTH.demo, "teacher_accounts": AUTH.has_accounts}
 
 
 @app.post("/api/sessions/{sid}/reason")

@@ -83,7 +83,8 @@ def test_teacher_sees_only_own_lessons(accounts):
     rita, dana = client_for("rita", "password-rita"), client_for("dana", "password-dana")
     live = rita.post("/api/teacher/lessons", json={"exercise_id": "EX-01"}).json()
     lid, code = live["lesson"]["id"], live["lesson"]["code"]
-    sid = TestClient(appmod.app).post("/api/join", json={"code": code, "label": "קבוצה ד"}).json()["id"]
+    student = TestClient(appmod.app)
+    sid = student.post("/api/join", json={"code": code, "label": "קבוצה ד"}).json()["id"]
     assert lid in [l["id"] for l in rita.get("/api/teacher/lessons").json()]
     assert lid not in [l["id"] for l in dana.get("/api/teacher/lessons").json()]
     assert dana.get(f"/api/teacher/lessons/{lid}").status_code == 404
@@ -91,8 +92,8 @@ def test_teacher_sees_only_own_lessons(accounts):
     assert dana.post(f"/api/teacher/sessions/{sid}/pause").status_code == 404
     assert dana.get(f"/api/teacher/lessons/{lid}/export.csv").status_code == 404
     assert rita.get(f"/api/teacher/sessions/{sid}").status_code == 200
-    # Students need no login.
-    assert TestClient(appmod.app).get(f"/api/sessions/{sid}").status_code == 200
+    # Students need no login: the joining tablet keeps working.
+    assert student.get(f"/api/sessions/{sid}").status_code == 200
 
 
 def test_demo_mode_without_accounts(tmp_path, monkeypatch):

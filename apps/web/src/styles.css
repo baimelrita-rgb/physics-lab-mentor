@@ -431,3 +431,4 @@ a.secondary.link-btn { color: var(--text); }
 .t-sum-grid span { font-size: 13px; color: var(--muted); }
 .t-ended summary { cursor: pointer; }
 .t-ended[open] summary { margin-bottom: 10px; }
+.loading.foreign { display: flex; flex-direction: column; gap: 10px; text-align: center; padding: 24px; max-width: 520px; margin: 0 auto; line-height: 1.6; }

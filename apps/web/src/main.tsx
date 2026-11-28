@@ -98,14 +98,16 @@ function Join() {
 function Picker() {
   const [items, setItems] = useState<ExerciseItem[]>([]);
   useEffect(() => { api.exercises().then(setItems); }, []);
+  const [err, setErr] = useState<string | null>(null);
   const start = async (id: string) => {
-    const s = await api.create(id);
-    location.href = `/station/${s.id}`;
+    try { const s = await api.create(id); location.href = `/station/${s.id}`; }
+    catch { setErr("תרגול בלי שיעור פתוח רק למורה מחוברת או במצב הדגמה. תלמידים מצטרפים עם קוד שיעור."); }
   };
   return (
     <div className="picker">
       <h1>תרגול בלי שיעור</h1>
       <p className="muted">בחרו תרגיל כדי לפתוח סשן עמדה.</p>
+      {err && <div className="note warn">{err}</div>}
       <div className="picker-list">
         {items.map((e) => (
           <button key={e.id} className="picker-item" disabled={!e.available} onClick={() => start(e.id)}>

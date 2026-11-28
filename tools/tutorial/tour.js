@@ -77,8 +77,15 @@ async function smoothScroll(y, ms = 900) { await p.evaluate((yy) => window.scrol
 async function scrollBy(dy, ms = 900) { await p.evaluate((d) => window.scrollBy({ top: d, behavior: 'smooth' }), dy); await sleep(ms); }
 
 // ---------- background groups through the student API (no browser) ----------
+// Each group keeps its own token cookie (the server binds a session to the tablet that joined).
+const jar = {};
 async function api(method, url, body) {
-  const r = await fetch(BASE + '/api' + url, { method, headers: { 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  const m = url.match(/^\/sessions\/([0-9a-f]+)/);
+  const headers = { 'content-type': 'application/json' };
+  if (m && jar[m[1]]) headers.cookie = jar[m[1]];
+  const r = await fetch(BASE + '/api' + url, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  const sc = r.headers.get('set-cookie');
+  if (sc) { const pm = sc.match(/Path=\/api\/sessions\/([0-9a-f]+)/i); if (pm) jar[pm[1]] = sc.split(';')[0]; }
   if (!r.ok) throw new Error(`${method} ${url} ${r.status} ${await r.text()}`);
   return r.json();
 }

@@ -44,7 +44,13 @@ class Auth:
 
     @property
     def demo(self) -> bool:
-        return not self.teachers()
+        """Open teacher screens only when explicitly asked for (DEMO=1) and no account exists."""
+        from .security import demo_mode
+        return not self.teachers() and demo_mode()
+
+    @property
+    def has_accounts(self) -> bool:
+        return bool(self.teachers())
 
     def add_teacher(self, username: str, name: str, password: str):
         username = username.strip().lower()

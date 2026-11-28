@@ -69,6 +69,7 @@ class Session:
     hint_quota: int = HINT_QUOTA                            # set by the teacher in lesson prep (0-3)
     allow_ask: bool = True                                  # free question to the mentor allowed
     members: list[str] = field(default_factory=list)        # roster ids of the students in this group
+    token: str = ""                                         # group token (cookie); never sent in student_view
     teacher_message: str | None = None
     hint_sources: list[str] = field(default_factory=list)   # "student" | "teacher", per level
     hint_texts: list[str] = field(default_factory=list)     # text actually shown, per level

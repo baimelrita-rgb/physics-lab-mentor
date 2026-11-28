@@ -123,6 +123,8 @@ export function TeacherLogin() {
   const [p, setP] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const next = new URLSearchParams(location.search).get("next") || "/teacher";
+  const [noAccounts, setNoAccounts] = useState(false);
+  useEffect(() => { api.status().then((x) => setNoAccounts(!x.teacher_accounts && !x.demo)).catch(() => {}); }, []);
   const go = async () => {
     try { await authApi.login(u, p); location.href = next.startsWith("/") ? next : "/teacher"; }
     catch (e) {
@@ -142,6 +144,7 @@ export function TeacherLogin() {
           <input id="p" className="join-input" dir="ltr" type="password" autoComplete="current-password" value={p} onChange={(e) => setP(e.target.value)} />
           <button className="primary big" type="submit" disabled={!u || !p}>כניסה</button>
           {err && <div className="note warn">{err}</div>}
+          {noAccounts && <div className="note">עדיין לא הוגדר אף חשבון מורה. מנהל המערכת מוסיף חשבון בשרת: <code dir="ltr">python3 tools/add_teacher.py</code></div>}
         </form>
       </div>
     </div>
@@ -364,6 +367,13 @@ function DetailDrawer({ sid, onClose, refresh }: { sid: string; onClose: () => v
             ))}
           </>
         )}
+
+        <div className="t-card-top">
+          <span className="muted sm">הקבוצה עברה לטאבלט אחר?</span>
+          <button className="secondary auto sm-btn" onClick={async () => {
+            if (confirm("לשחרר את העמדה? הטאבלט הבא שיפתח את כתובת העמדה ימשיך את העבודה של הקבוצה.")) setD(await teacherApi.action(d.id, "release"));
+          }}>העבר לטאבלט אחר</button>
+        </div>
 
         <div className="t-h sm2">הודעה לעמדה</div>
         <div className="t-msg t-send">

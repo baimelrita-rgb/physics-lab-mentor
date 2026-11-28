@@ -118,7 +118,10 @@ export type Detail = {
   timeline: { t: number; state: string; type: string; [k: string]: unknown }[];
 };
 
-export class ApiError extends Error {}
+export class ApiError extends Error {
+  status = 0;
+  constructor(message: string, status = 0) { super(message); this.status = status; }
+}
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -132,7 +135,7 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
   }
   if (!res.ok) {
     const j = await res.json().catch(() => ({}));
-    throw new ApiError(j?.detail?.detail ?? j?.detail ?? res.statusText);
+    throw new ApiError(j?.detail?.detail ?? j?.detail ?? res.statusText, res.status);
   }
   return res.json();
 }
@@ -155,7 +158,7 @@ export const api = {
   removeReading: (id: string, rid: string) => call<View>("DELETE", `/sessions/${id}/readings/${rid}`),
   hint: (id: string) => call<View>("POST", `/sessions/${id}/hints`),
   ask: (id: string, text: string) => call<View>("POST", `/sessions/${id}/ask`, { text }),
-  status: () => call<{ llm: boolean; llm_configured: boolean; model_phrase: string }>("GET", "/status"),
+  status: () => call<{ llm: boolean; llm_configured: boolean; model_phrase: string; demo: boolean; teacher_accounts: boolean }>("GET", "/status"),
   reason: (id: string, text: string, cited: string[]) => call<View>("POST", `/sessions/${id}/reason`, { text, cited }),
   exit: (id: string, text: string) => call<View>("POST", `/sessions/${id}/exit`, { text }),
 };
@@ -194,6 +197,6 @@ export const teacherApi = {
   lessonAction: (lid: string, action: "pause" | "resume" | "close") => call<Live>("POST", `/teacher/lessons/${lid}/${action}`),
   detail: (sid: string) => call<Detail>("GET", `/teacher/sessions/${sid}`),
   scores: (sid: string, scores: number[], note: string) => call<Detail>("POST", `/teacher/sessions/${sid}/scores`, { scores, note }),
-  action: (sid: string, action: "pause" | "resume" | "hint" | "message", text?: string) =>
+  action: (sid: string, action: "pause" | "resume" | "hint" | "message" | "release", text?: string) =>
     call<Detail>("POST", `/teacher/sessions/${sid}/${action}`, text !== undefined ? { text } : undefined),
 };
