@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from . import content, llm, teacher
 from .ingest import load_all, resolve
+from .live import FrameError, LiveStation
 from .session import GuardError, Session
 from .teacher import Lesson
 from .store import Store
@@ -124,6 +125,42 @@ def join(body: Join):
     return _new_session(lesson.exercise_id, body.label, lesson).student_view()
 
 
+# ---------- edge (live station) ----------
+# Each edge agent authenticates with a device token. Set EDGE_TOKEN in production.
+EDGE_TOKEN = os.environ.get("EDGE_TOKEN", "dev-edge-token")
+STATIONS: dict[str, LiveStation] = {}
+
+
+def _device(token: str | None):
+    if token != EDGE_TOKEN:
+        raise HTTPException(401, "device token required")
+
+
+def _station(station_id: str) -> LiveStation:
+    return STATIONS.setdefault(station_id, LiveStation(station_id))
+
+
+@app.post("/api/edge/stations/{station_id}/obs")
+def edge_obs(station_id: str, frames: list[dict] | dict, x_device_token: str | None = Header(None)):
+    """One obs.v1 frame, or a list of them (an agent flushing its offline buffer)."""
+    _device(x_device_token)
+    st = _station(station_id)
+    accepted = 0
+    for f in frames if isinstance(frames, list) else [frames]:
+        try:
+            accepted += st.ingest(f)
+        except FrameError as e:
+            raise HTTPException(422, {"code": "BAD_FRAME", "detail": str(e), "seq": f.get("seq")})
+    return {"accepted": accepted, "last_seq": st.last_seq}
+
+
+@app.post("/api/edge/stations/{station_id}/status")
+def edge_status(station_id: str, body: dict, x_device_token: str | None = Header(None)):
+    _device(x_device_token)
+    _station(station_id).heartbeat(body)
+    return {"ok": True}
+
+
 # ---------- teacher ----------
 # Demo protection only: set TEACHER_TOKEN to require it. Real teacher login (OIDC) comes before a pilot.
 TEACHER_TOKEN = os.environ.get("TEACHER_TOKEN", "")
@@ -180,6 +217,20 @@ def lesson_action(lid: str, action: str, x_teacher_token: str | None = Header(No
         lesson.closed = True
         STORE.save_lesson(lesson)
     return teacher.live(lesson, SESSIONS)
+
+
+@app.get("/api/teacher/stations")
+def stations(x_teacher_token: str | None = Header(None)):
+    _teacher(x_teacher_token)
+    return [{"station": k, "connected": v.connected, "samples": len(v.samples)} for k, v in STATIONS.items()]
+
+
+@app.get("/api/teacher/stations/{station_id}/monitor")
+def station_monitor(station_id: str, x_teacher_token: str | None = Header(None)):
+    _teacher(x_teacher_token)
+    if station_id not in STATIONS:
+        raise HTTPException(404, "station has not connected yet")
+    return STATIONS[station_id].monitor()
 
 
 @app.get("/api/teacher/sessions/{sid}")

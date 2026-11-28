@@ -2,6 +2,7 @@
 # Only the rules that can be checked from measurements are here. R-MOT-04/05/07/08 are
 # preconditions and safety gates of the setup wizard (later stage).
 # status: proposed = waiting for Talem approval. Nothing here is approved yet.
+# tolerance: measurement tolerance added to the limits before a reading counts as outside.
 # hold_s: the condition must hold this many consecutive seconds ("sustained"), to ignore spikes.
 station_type: ST-MOT-VFD
 rules:
@@ -28,6 +29,7 @@ rules:
     channels: [f_drive_hz]
     min: 10
     max: 50
+    tolerance: 0.5         # measurement tolerance: a reading of 50.1 Hz at a 50 Hz setting is not a violation (proposed)
     active_above: 0.5      # the rule applies only while the drive outputs a frequency
     hold_s: 3
     severity: stop

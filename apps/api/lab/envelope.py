@@ -21,7 +21,8 @@ def _level(rule: dict, value: float) -> str | None:
     lo, hi = rule.get("min"), rule.get("max")
     if rule.get("active_above") is not None and value <= rule["active_above"]:
         return None
-    if (hi is not None and value > hi) or (lo is not None and value < lo):
+    tol = rule.get("tolerance", 0)
+    if (hi is not None and value > hi + tol) or (lo is not None and value < lo - tol):
         return "stop"
     if hi is not None and rule.get("warn_ratio") and value >= hi * rule["warn_ratio"]:
         return "warn"

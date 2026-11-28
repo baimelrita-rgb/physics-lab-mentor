@@ -2,6 +2,7 @@ import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { api, ApiError, type ExerciseItem } from "./api";
 import { Station } from "./Station";
+import { Monitor, MonitorList } from "./Monitor";
 import { TeacherHome, TeacherLive } from "./Teacher";
 import "./styles.css";
 
@@ -16,6 +17,8 @@ function App() {
   if ((m = path.match(/^\/station\/(\w+)/))) return <Station id={m[1]} />;
   if ((m = path.match(/^\/teacher\/(\w+)/))) return <TeacherLive lessonId={m[1]} />;
   if (path.startsWith("/teacher")) return <TeacherHome />;
+  if ((m = path.match(/^\/monitor\/([\w-]+)/))) return <Monitor id={m[1]} />;
+  if (path.startsWith("/monitor")) return <MonitorList />;
   if (path.startsWith("/join")) return <Join />;
   if (path.startsWith("/demo")) return <Picker />;
   return <Home />;
@@ -30,6 +33,7 @@ function Home() {
         <a className="picker-item" href="/teacher"><b>מסך מורה</b><span>פתיחת שיעור ומעקב חי אחרי העמדות</span></a>
         <a className="picker-item" href="/join"><b>הצטרפות לעמדה</b><span>הקלדת קוד השיעור שהמורה פתח</span></a>
         <a className="picker-item" href="/demo"><b>תרגול בלי שיעור</b><span>פתיחת תרגיל ישירות, בלי מסך מורה</span></a>
+        <a className="picker-item" href="/monitor"><b>ניטור עמדות</b><span>ערכים חיים מהבקר בעמדה ומצב מעטפת הבטיחות</span></a>
       </div>
     </div>
   );
