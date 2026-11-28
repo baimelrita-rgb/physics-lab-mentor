@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from . import content, llm, teacher
 from .ingest import load_all, resolve
 from .live import FrameError, LiveStation
-from .session import GuardError, Session
+from .session import GuardError, Session, exercise_number
 from .teacher import Lesson
 from .store import Store
 from .tutor import Tutor
@@ -97,8 +97,9 @@ class Text(BaseModel):
 
 @app.get("/api/exercises")
 def list_exercises():
+    """Public list: numbers only. Exercise names can reveal the answer, so only the teacher sees them."""
     exs = content.exercises()["exercises"]
-    return [{"id": k, "title": v["title"], "subtitle": v["subtitle"], "status": v["status"],
+    return [{"id": k, "number": exercise_number(k), "status": v["status"],
              "available": resolve(RECORDINGS, v["recording"]) is not None} for k, v in exs.items()]
 
 
@@ -191,6 +192,15 @@ def create_lesson(body: NewLesson, x_teacher_token: str | None = Header(None)):
     LESSONS[lesson.id] = lesson
     STORE.save_lesson(lesson)
     return teacher.live(lesson, SESSIONS)
+
+
+@app.get("/api/teacher/exercises")
+def teacher_exercises(x_teacher_token: str | None = Header(None)):
+    _teacher(x_teacher_token)
+    exs = content.exercises()["exercises"]
+    return [{"id": k, "number": exercise_number(k), "title": v["title"], "subtitle": v["subtitle"],
+             "status": v["status"], "available": resolve(RECORDINGS, v["recording"]) is not None}
+            for k, v in exs.items()]
 
 
 @app.get("/api/teacher/lessons")

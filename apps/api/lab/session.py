@@ -36,6 +36,10 @@ MENTOR_TEXT = {
 }
 
 
+def exercise_number(exercise_id: str) -> str:
+    return f"תרגיל {int(exercise_id.split('-')[-1])}"
+
+
 class GuardError(Exception):
     """A transition or action that the current state does not allow (STATE_GUARD_FAILED)."""
 
@@ -368,7 +372,8 @@ class Session:
         return {
             "id": self.id, "state": self.state, "state_rev": self.state_rev, "paused": self.paused,
             "step": STEP_OF[self.state], "steps": STEPS,
-            "exercise": {"id": self.exercise_id, "title": ex["title"], "subtitle": ex["subtitle"],
+            # The student sees only the exercise number: names can give the answer away (teacher decision).
+            "exercise": {"id": self.exercise_id, "number": exercise_number(self.exercise_id),
                          "goal": ex["goal"], "status": ex["status"], "stop_s": ex["stop_s"],
                          "duration": self.recording.duration, "windows": ex["windows"],
                          "cards": [{"id": k, **cats["knowledge_cards"][k]} for k in ex["cards"]],

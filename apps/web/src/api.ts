@@ -6,7 +6,7 @@ export type Reading = {
 export type View = {
   id: string; state: string; state_rev: number; paused: boolean; step: number; steps: string[];
   exercise: {
-    id: string; title: string; subtitle: string; goal: string; status: string; stop_s: number;
+    id: string; number: string; goal: string; status: string; stop_s: number;
     duration: number; windows: Record<string, [number, number]>;
     cards: { id: string; title: string; body: string; formula?: string }[];
     check: { question: string; choices: string[]; highlight_card: string };
@@ -30,7 +30,8 @@ export type View = {
   hypothesis: string | null;
   exit_answer: string | null;
 };
-export type ExerciseItem = { id: string; title: string; subtitle: string; status: string; available: boolean };
+export type ExerciseItem = { id: string; number: string; status: string; available: boolean };
+export type TeacherExercise = ExerciseItem & { title: string; subtitle: string };
 
 export type Alert = { kind: string; title: string; text: string; suggest: string; station?: string; session?: string };
 export type Card = {
@@ -96,6 +97,7 @@ export const api = {
 };
 
 export const teacherApi = {
+  exercises: () => call<TeacherExercise[]>("GET", "/teacher/exercises"),
   createLesson: (exercise_id: string) => call<Live>("POST", "/teacher/lessons", { exercise_id }),
   live: (lid: string) => call<Live>("GET", `/teacher/lessons/${lid}`),
   lessonAction: (lid: string, action: "pause" | "resume" | "close") => call<Live>("POST", `/teacher/lessons/${lid}/${action}`),

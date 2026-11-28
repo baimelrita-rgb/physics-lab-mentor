@@ -55,7 +55,7 @@ export function Station({ id }: { id: string }) {
             <span className="step-n">{i + 1}</span><span>{label}</span>
           </div>
         ))}
-        <div className="step-ex">תרגיל: {ex.title}</div>
+        <div className="step-ex">{ex.number}</div>
       </nav>
 
       {v.paused && <div className="paused">המורה השהה את העבודה. המתינו להוראות.</div>}
@@ -82,7 +82,7 @@ function Theory({ v, act }: P) {
   const hl = v.theory_answer && !v.theory_answer.correct ? ex.check.highlight_card : null;
   return (
     <section className="panel center theory">
-      <div className="lead">{ex.title} · {ex.subtitle}</div>
+      <div className="lead">{ex.number}</div>
       <div className="cards">
         {ex.cards.map((c) => (
           <article key={c.id} className={`kcard ${hl === c.id ? "hl" : ""}`}>

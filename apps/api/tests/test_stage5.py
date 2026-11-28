@@ -1,9 +1,11 @@
 """Stage 5: live station input (obs.v1) and the engineer monitor."""
+import json
 import pytest
 from fastapi.testclient import TestClient
 
 from lab import app as appmod
 from lab.live import FrameError, LiveStation
+from test_stage1 import recs  # noqa: F401
 
 H = {"X-Device-Token": "dev-edge-token"}
 
@@ -95,3 +97,17 @@ def test_teacher_confirms_scores_and_exports_csv():
     import csv, io
     rows = list(csv.reader(io.StringIO(text.lstrip("﻿"))))
     assert rows[1][rows[0].index("סה״כ")] == "4" and rows[1][rows[0].index("ציון אושר")] == "כן"
+
+
+def test_student_never_sees_exercise_names(recs):
+    from lab import content
+    from test_stage1 import new
+    c = TestClient(appmod.app)
+    public = json.dumps(c.get("/api/exercises").json(), ensure_ascii=False)
+    for ex_id, ex in content.exercises()["exercises"].items():
+        s, _ = new(recs, ex_id)
+        view = json.dumps(s.student_view(), ensure_ascii=False)
+        for name in (ex["title"], ex["subtitle"]):
+            assert name not in view and name not in public, (ex_id, name)
+        assert s.student_view()["exercise"]["number"] == f"תרגיל {int(ex_id[-2:])}"
+    assert "האטה בציר" in json.dumps(c.get("/api/teacher/exercises").json(), ensure_ascii=False)

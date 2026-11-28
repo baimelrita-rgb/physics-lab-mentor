@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ApiError, api, teacherApi, type Card, type Detail, type ExerciseItem, type Live } from "./api";
+import { ApiError, api, teacherApi, type Card, type Detail, type Live, type TeacherExercise } from "./api";
 import { fmt } from "./Chart";
 
 const FLAG_STYLE: Record<string, [string, string]> = {
@@ -14,9 +14,9 @@ const shade = (v: number | null): [string, string] =>
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
 export function TeacherHome() {
-  const [items, setItems] = useState<ExerciseItem[]>([]);
+  const [items, setItems] = useState<TeacherExercise[]>([]);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => { api.exercises().then(setItems); }, []);
+  useEffect(() => { teacherApi.exercises().then(setItems); }, []);
   const start = async (id: string) => {
     try { const l = await teacherApi.createLesson(id); location.href = `/teacher/${l.lesson.id}`; }
     catch (e) { setError(e instanceof ApiError ? e.message : "שגיאה"); }
@@ -31,7 +31,7 @@ export function TeacherHome() {
           <div className="picker-list">
             {items.map((e) => (
               <button key={e.id} className="picker-item" disabled={!e.available} onClick={() => start(e.id)}>
-                <b>{e.id} · {e.title}</b><span>{e.subtitle}</span>
+                <b>{e.number} · {e.title}</b><span>{e.subtitle}</span>
                 <span className={`chip ${e.status === "approved" ? "okc" : "draft"}`}>{e.status === "approved" ? "תוכן מאושר" : "תוכן טיוטה"}</span>
               </button>
             ))}

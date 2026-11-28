@@ -81,8 +81,7 @@ function Picker() {
       <div className="picker-list">
         {items.map((e) => (
           <button key={e.id} className="picker-item" disabled={!e.available} onClick={() => start(e.id)}>
-            <b>{e.id} · {e.title}</b>
-            <span>{e.subtitle}</span>
+            <b>{e.number}</b>
             <span className={`chip ${e.status === "approved" ? "okc" : "draft"}`}>
               {e.status === "approved" ? "תוכן מאושר" : "תוכן טיוטה"}
             </span>
