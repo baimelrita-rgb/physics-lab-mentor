@@ -175,3 +175,11 @@ a.picker-item { color: inherit; text-decoration: none; }
 .x.big { font-size: 26px; }
 .t-msg { display: flex; gap: 8px; } .t-msg input { flex: 1; font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; }
 .t-timeline { margin: 0; padding-inline-start: 20px; font-size: 13px; display: flex; flex-direction: column; gap: 3px; }
+
+/* Mentor AskField */
+.ask-row { display: flex; gap: 6px; }
+.ask-row input { flex: 1; min-height: 44px; font: inherit; font-size: 15px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; }
+.reply { background: var(--chip); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.reply p { margin: 0; line-height: 1.5; }
+.t-llm { margin-inline-start: auto; font-size: 13px; color: #C9D0D8; border: 1px solid #4A535E; border-radius: 999px; padding: 4px 12px; }
+.t-llm.on { color: #BFE5C2; border-color: #3B7A3E; }

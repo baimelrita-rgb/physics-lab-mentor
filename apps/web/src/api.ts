@@ -20,6 +20,8 @@ export type View = {
   readings: Reading[];
   hints: { used: number; quota: number; given: string[]; sources: string[] };
   note_from_teacher: string | null;
+  mentor_reply: { text: string; chips: string[] } | null;
+  can_ask: boolean;
   label: string;
   mentor: string;
   feedback: { outcome: string; message: string; passed: boolean } | null;
@@ -50,6 +52,8 @@ export type Detail = {
   hypothesis_label: string | null; readings: Reading[];
   attempts: { text: string; outcome: string; message: string; passed: boolean; misconception: string | null; missing: string[] }[];
   exit_answer: string | null; rubric: (number | null)[]; rubric_aspects: string[];
+  asks: { q: string; a: string; intent: string; source: string; state: string }[];
+  hints: { level: number; text: string; by: string }[];
   timeline: { t: number; state: string; type: string; [k: string]: unknown }[];
 };
 
@@ -84,6 +88,8 @@ export const api = {
   reading: (id: string, channel: string, t: number) => call<View>("POST", `/sessions/${id}/readings`, { channel, t }),
   removeReading: (id: string, rid: string) => call<View>("DELETE", `/sessions/${id}/readings/${rid}`),
   hint: (id: string) => call<View>("POST", `/sessions/${id}/hints`),
+  ask: (id: string, text: string) => call<View>("POST", `/sessions/${id}/ask`, { text }),
+  status: () => call<{ llm: boolean; llm_configured: boolean; model_phrase: string }>("GET", "/status"),
   reason: (id: string, text: string, cited: string[]) => call<View>("POST", `/sessions/${id}/reason`, { text, cited }),
   exit: (id: string, text: string) => call<View>("POST", `/sessions/${id}/exit`, { text }),
 };

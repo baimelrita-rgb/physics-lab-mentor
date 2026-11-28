@@ -51,6 +51,11 @@ def evidence_channels(exercise_id: str) -> set[str]:
 
 def misconceptions_of(s: Session) -> list[str]:
     out = [a["misconception"] for a in s.attempts if a.get("misconception")]
+    # Misconceptions the classifier found in the student's own words (teacher information only).
+    for item in [a.get("classification") for a in s.attempts] + [q.get("classification") for q in s.asks]:
+        m = (item or {}).get("misconception")
+        if m and m != "none" and (item or {}).get("intent") != "unclear" and m not in out:
+            out.append(m)
     # Brain 1: M-01 is also detected when H-FREQ is chosen without an output-frequency channel open.
     if s.hypothesis == "H-FREQ" and "f_drive_hz" not in s.open_channels and "M-01" not in out:
         out.append("M-01")
@@ -100,6 +105,11 @@ def alerts(s: Session) -> list[dict]:
     if s.hints_used >= HINT_QUOTA:
         out.append({"kind": "hint3", "title": "הגיע לרמז 3", "text": f"{s.label} השתמש ברמז האחרון.",
                     "suggest": "בדקו בעל פה אם הקבוצה יודעת מה היא מחפשת בגרף."})
+    off = [q for q in s.asks if q["intent"] == "off_topic"]
+    if off:
+        out.append({"kind": "offtopic", "title": "מחוץ לתחום",
+                    "text": f"{s.label} שאל שאלה שאינה קשורה לתרגיל. הוחזר לתרגיל.",
+                    "suggest": "בדקו אם הקבוצה תקועה ומחפשת דרך לצאת מהמשימה."})
     for m in misconceptions_of(s)[-1:]:
         out.append({"kind": "misconception", "title": f"תפיסה שגויה {m}",
                     "text": f"{s.label}: {MISCONCEPTIONS[m]}.",
@@ -174,5 +184,6 @@ def detail(s: Session) -> dict:
         "readings": s.readings, "attempts": [{k: v for k, v in a.items() if k != "detail"} | {"missing": a["detail"]["missing_evidence"]}
                                               for a in s.attempts],
         "exit_answer": s.exit_answer, "rubric": rubric(s), "rubric_aspects": RUBRIC,
+        "asks": s.asks, "hints": [{"level": i + 1, "text": t, "by": s.hint_sources[i]} for i, t in enumerate(s.hint_texts)],
         "timeline": [event(e) for e in s.events],
     }

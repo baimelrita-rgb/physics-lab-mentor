@@ -5,6 +5,7 @@
 # misconceptions: hypothesis code -> misconception id shown as a targeted redirect.
 
 EX-01:
+  leak_terms: [תוספת עומס, העומס עלה, העומס גדל, עליית עומס, עליית העומס, הגדלת עומס, הגדלת העומס, עומס נוסף, העומס השתנה, מומנט העומס השתנה]  # the mentor may never write these
   check_answer: 0  # index of the correct choice in the theory check question
   cause: H-LOAD
   evidence:
@@ -15,6 +16,7 @@ EX-01:
   conclusion: תדר נשאר 50 Hz, מומנט עלה מ־0.65 ל־1.55 N·m. תוספת עומס.
 
 EX-02:
+  leak_terms: [חסר ברכישה, תקלה ברכישה, בעיית רכישה, לא נקלט, תקלת מדידה]  # the mentor may never write these
   check_answer: 1  # index of the correct choice in the theory check question
   cause: H-MISSING
   evidence:
@@ -24,6 +26,7 @@ EX-02:
   conclusion: חסר ברכישה. U ו־W נשארו 0.730/0.731 A, אין בסיס לאובדן פאזה. V חוזר בשנייה 22.
 
 EX-03:
+  leak_terms: [קריאה ישנה, המהירות קפואה, ערך קפוא, לא התעדכנה, לא מתעדכנת]  # the mentor may never write these
   check_answer: 1  # index of the correct choice in the theory check question
   cause: H-STALE
   evidence:
@@ -33,6 +36,7 @@ EX-03:
   conclusion: בשנייה 18 הסל״ד (717) שייך לשנייה 9. התדר כבר 47.5 Hz. תגובת הציר מאומתת רק בשנייה 25.
 
 EX-04:
+  leak_terms: [עומס יתר, מעל הנקוב, חורג מהנקוב, חריגה מהנקוב]  # the mentor may never write these
   check_answer: 1  # index of the correct choice in the theory check question
   cause: H-OVERLOAD
   evidence:

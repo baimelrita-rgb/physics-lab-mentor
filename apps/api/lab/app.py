@@ -9,15 +9,17 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import content, teacher
+from . import content, llm, teacher
 from .ingest import load_all
 from .session import GuardError, Session
 from .teacher import Lesson
+from .tutor import Tutor
 
 app = FastAPI(title="Lab Mentor")
 RECORDINGS = load_all(content.DATA)
 SESSIONS: dict[str, Session] = {}
 LESSONS: dict[str, Lesson] = {}
+TUTOR = Tutor()
 LOG = content.ROOT / "var" / "learning_log.jsonl"
 SPEED = float(os.environ.get("REPLAY_SPEED", "1"))
 
@@ -95,7 +97,7 @@ def _new_session(exercise_id: str, label: str, lesson: Lesson | None = None) -> 
     if not ex or ex["recording"] not in RECORDINGS:
         raise HTTPException(404, "exercise or recording not available")
     s = Session(exercise_id, RECORDINGS[ex["recording"]], log_path=LOG, replay_speed=SPEED,
-                label=label.strip()[:30] or "עמדה", lesson_id=lesson.id if lesson else None)
+                label=label.strip()[:30] or "עמדה", lesson_id=lesson.id if lesson else None, tutor=TUTOR)
     SESSIONS[s.id] = s
     if lesson:
         lesson.session_ids.append(s.id)
@@ -244,6 +246,17 @@ def remove_reading(sid: str, rid: str):
 @app.post("/api/sessions/{sid}/hints")
 def hint(sid: str):
     return _run(sid, lambda s: s.request_hint())
+
+
+@app.post("/api/sessions/{sid}/ask")
+def ask(sid: str, body: Text):
+    return _run(sid, lambda s: s.ask(body.text))
+
+
+@app.get("/api/status")
+def status():
+    return {"llm": TUTOR.live, "llm_configured": llm.enabled(), "model_phrase": llm.MODEL_PHRASE,
+            "model_classify": llm.MODEL_CLASSIFY, "recordings": sorted(RECORDINGS)}
 
 
 @app.post("/api/sessions/{sid}/reason")

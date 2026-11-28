@@ -302,6 +302,8 @@ function Mentor({ v, act, error }: P & { error: string | null }) {
         </div>
       )}
 
+      {v.can_ask && <AskBox v={v} act={act} />}
+
       {v.state === "EXIT" && <ExitForm v={v} act={act} />}
 
       {v.state === "CLOSED" && (
@@ -329,6 +331,34 @@ function Mentor({ v, act, error }: P & { error: string | null }) {
   );
 }
 
+function AskBox({ v, act }: P) {
+  const [q, setQ] = useState("");
+  const [busy, setBusy] = useState(false);
+  const send = async (text: string) => {
+    if (!text.trim()) return;
+    setBusy(true); await act(api.ask(v.id, text)); setBusy(false); setQ("");
+  };
+  return (
+    <div className="stack ask">
+      {v.mentor_reply && (
+        <div className="reply">
+          <p>{v.mentor_reply.text}</p>
+          {v.mentor_reply.chips.length > 0 && (
+            <div className="chips">
+              {v.mentor_reply.chips.map((c) => <button key={c} className="chip-btn sm" disabled={busy} onClick={() => send(c)}>{c}</button>)}
+            </div>
+          )}
+        </div>
+      )}
+      <div className="ask-row">
+        <input aria-label="שאלה למנטור" maxLength={300} placeholder="שאלה למנטור (עד 300 תווים)" value={q}
+               onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(q); }} />
+        <button className="secondary auto" disabled={busy || !q.trim()} onClick={() => send(q)}>{busy ? "…" : "שאל"}</button>
+      </div>
+    </div>
+  );
+}
+
 function ExitForm({ v, act }: P) {
   const [text, setText] = useState("");
   return (
@@ -349,5 +379,6 @@ const ERRORS: Record<string, string> = {
   "channel is not open": "פתחו את הערוץ קודם.",
   "that second is not visible yet": "השנייה הזו עוד לא הוצגה.",
   "paused by teacher": "המורה השהה את העבודה.",
+  "empty question": "כתבו שאלה קודם.",
 };
 function translate(e: string) { return ERRORS[e] ?? e; }

@@ -7,6 +7,7 @@ const FLAG_STYLE: Record<string, [string, string]> = {
 };
 const ALERT_STYLE: Record<string, [string, string]> = {
   stuck: ["#FDECEC", "#A12B2B"], hint3: ["#FFF1E0", "#9A4A06"], misconception: ["#F3F5F8", "#3A4450"],
+  offtopic: ["#F3F5F8", "#3A4450"],
 };
 const shade = (v: number | null): [string, string] =>
   v === 2 ? ["#DCEFDD", "#2E6B31"] : v === 1 ? ["#FFF1D6", "#8A5A00"] : v === 0 ? ["#F3F5F8", "#5A6573"] : ["#fff", "#9AA5B1"];
@@ -43,6 +44,8 @@ export function TeacherHome() {
 }
 
 function TeacherHeader() {
+  const [llm, setLlm] = useState<boolean | null>(null);
+  useEffect(() => { api.status().then((x) => setLlm(x.llm)).catch(() => setLlm(null)); }, []);
   return (
     <header className="t-header">
       <div className="t-header-in">
@@ -51,6 +54,11 @@ function TeacherHeader() {
           <a href="/teacher" className="cur">שיעור חי</a>
           {["הכנת שיעור", "תלמידים", "כיתה", "תוכן"].map((t) => <span key={t} title="בשלב הבא">{t}</span>)}
         </nav>
+        {llm !== null && (
+          <span className={`t-llm ${llm ? "on" : ""}`} title={llm ? "המנטור מנסח רמזים עם Claude" : "אין מפתח API: המנטור משתמש בטקסטים המאושרים בלבד"}>
+            Claude: {llm ? "פעיל" : "כבוי (טקסטים מאושרים)"}
+          </span>
+        )}
       </div>
     </header>
   );
@@ -168,12 +176,16 @@ function StationCard({ c, onOpen, refresh }: { c: Card; onOpen: () => void; refr
   );
 }
 
+const INTENT: Record<string, string> = {
+  hypothesis: "השערה", question: "שאלה", answer_request: "בקשת תשובה", off_topic: "מחוץ לתחום", other: "אחר", unclear: "לא ברור",
+};
+
 const EVENT_LABEL: Record<string, string> = {
   "session.opened": "הצטרפות", "state.changed": "מעבר שלב", "theory.answered": "שאלת הבנה",
   "prediction.submitted": "תחזית", "hypothesis.chosen": "השערה", "channel.opened": "פתיחת ערוץ",
   "channel.closed": "סגירת ערוץ", "reading.saved": "קריאה נשמרה", "hint.given": "רמז",
   "reason.evaluated": "נימוק", "exit.answered": "שאלת יציאה", "teacher.paused": "השהיה",
-  "teacher.resumed": "המשך", "teacher.message": "הודעת מורה",
+  "teacher.resumed": "המשך", "teacher.message": "הודעת מורה", "student.asked": "שאלה למנטור",
 };
 
 function DetailDrawer({ sid, onClose, refresh }: { sid: string; onClose: () => void; refresh: () => void }) {
@@ -200,6 +212,18 @@ function DetailDrawer({ sid, onClose, refresh }: { sid: string; onClose: () => v
           <div key={i} className={`note ${a.passed ? "ok" : "warn"} sm`}>נימוק {i + 1}: ״{a.text || "—"}״ · {a.outcome}{a.misconception ? ` (${a.misconception})` : ""}{a.missing.length ? ` · חסר: ${a.missing.join(", ")}` : ""}</div>
         ))}
         {d.exit_answer && <div className="sm">שאלת יציאה: ״{d.exit_answer}״</div>}
+        {d.hints.length > 0 && <div className="sm">רמזים: {d.hints.map((h) => `${h.level}${h.by === "teacher" ? " (מהמורה)" : ""}: ״${h.text}״`).join(" · ")}</div>}
+        {d.asks.length > 0 && (
+          <>
+            <div className="t-h sm2">שאלות למנטור</div>
+            {d.asks.map((q, i) => (
+              <div key={i} className="box sm">
+                <div><b>ש:</b> {q.q} <span className="muted">({INTENT[q.intent] ?? q.intent})</span></div>
+                <div><b>ת:</b> {q.a} <span className="muted">{q.source === "llm" ? "· נוסח ע״י Claude" : "· טקסט מאושר"}</span></div>
+              </div>
+            ))}
+          </>
+        )}
 
         <div className="t-h sm2">הודעה לעמדה</div>
         <div className="t-msg">

@@ -64,6 +64,10 @@ class Session:
     lesson_id: str | None = None
     teacher_message: str | None = None
     hint_sources: list[str] = field(default_factory=list)   # "student" | "teacher", per level
+    hint_texts: list[str] = field(default_factory=list)     # text actually shown, per level
+    asks: list[dict] = field(default_factory=list)          # free questions and mentor replies
+    mentor_reply: dict | None = None
+    tutor: object = None                                    # lab.tutor.Tutor, or None for static texts only
     channel_opens: list[dict] = field(default_factory=list)  # {channel, hints_used}
     events: list[dict] = field(default_factory=list)          # timeline for the teacher
     state_entered: float = 0.0
@@ -104,6 +108,7 @@ class Session:
         self.state_rev += 1
         self.state_entered = self.clock()
         self.teacher_message = None
+        self.mentor_reply = None
         if new == "OBSERVE":
             self._observe_started = self.clock()
         if new == "RECHECK":
@@ -150,8 +155,10 @@ class Session:
             raise GuardError("no hints left")
         self.hints_used += 1
         self.hint_sources.append("teacher")
-        self._log("hint.given", level=self.hints_used, by="teacher")
-        return self.ex["hints"][self.hints_used - 1]
+        text = self.ex["hints"][self.hints_used - 1]       # the teacher's choice: approved text as-is
+        self.hint_texts.append(text)
+        self._log("hint.given", level=self.hints_used, by="teacher", source="static", text=text)
+        return text
 
     def send_message(self, text: str):
         text = text.strip()[:200]
@@ -218,8 +225,37 @@ class Session:
             raise GuardError("no hints left")
         self.hints_used += 1
         self.hint_sources.append("student")
-        self._log("hint.given", level=self.hints_used, by="student")
-        return self.ex["hints"][self.hints_used - 1]
+        approved = self.ex["hints"][self.hints_used - 1]
+        said = self._say(f"hint_level_{self.hints_used}", approved)
+        self.hint_texts.append(said["text"])
+        self._log("hint.given", level=self.hints_used, by="student", source=said["source"],
+                  text=said["text"], failures=said["failures"])
+        return said["text"]
+
+    def ask(self, text: str) -> dict:
+        """A free question in the mentor's AskField (UI doc: up to 300 characters)."""
+        self._require(*HINT_STATES)
+        text = text.strip()[:300]
+        if not text:
+            raise GuardError("empty question")
+        if self.tutor:
+            reply = self.tutor.answer(self, text)
+        else:
+            from .tutor import GENERIC_PROBE
+            reply = {"text": GENERIC_PROBE.get(self.state, GENERIC_PROBE["EVIDENCE"]), "chips": [],
+                     "source": "static", "intent": "question", "failures": []}
+        entry = {"q": text, "a": reply["text"], "chips": reply.get("chips", []), "intent": reply["intent"],
+                 "source": reply["source"], "state": self.state,
+                 "classification": reply.get("classification")}
+        self.asks.append(entry)
+        self.mentor_reply = {"text": reply["text"], "chips": reply.get("chips", [])}
+        self._log("student.asked", **entry, failures=reply.get("failures", []))
+        return entry
+
+    def _say(self, move: str, approved: str, student_text: str = "") -> dict:
+        if self.tutor:
+            return self.tutor.say(self, move, approved, student_text)
+        return {"text": approved, "chips": [], "source": "static", "failures": []}
 
     def submit_reason(self, text: str, cited_ids: list[str]) -> dict:
         self._require("REASON")
@@ -227,10 +263,16 @@ class Session:
         if len(cited) < MIN_READINGS and self.hypothesis != "H-INSUFFICIENT":
             raise GuardError(f"cite at least {MIN_READINGS} readings")
         res = diagnosis.evaluate(self.exercise_id, self.hypothesis, cited)
-        attempt = {"text": text.strip()[:300], "cited": cited_ids, "hypothesis": self.hypothesis,
-                   **res.student_view(), "misconception": res.misconception, "detail": res.teacher}
+        text = text.strip()[:300]
+        # The classifier only informs the teacher; the decision above stays deterministic.
+        cls = self.tutor.classify(self, text) if (self.tutor and text) else None
+        move = {"supported": "confirm", "insufficient_valid": "confirm", "misconception": "redirect"}.get(res.outcome, "probe")
+        said = self._say(move, res.message, text)
+        attempt = {"text": text, "cited": cited_ids, "hypothesis": self.hypothesis,
+                   **res.student_view(), "message": said["text"], "source": said["source"],
+                   "misconception": res.misconception, "classification": cls, "detail": res.teacher}
         self.attempts.append(attempt)
-        self.feedback = res.student_view()
+        self.feedback = {**res.student_view(), "message": said["text"]}
         self._log("reason.evaluated", **attempt)
         self._go("RECHECK" if res.passed else "EVIDENCE")
         return self.feedback
@@ -337,9 +379,11 @@ class Session:
                        for k in self.open_channels} if upto >= 0 else {},
             "readings": self.readings,
             "hints": {"used": self.hints_used, "quota": HINT_QUOTA,
-                      "given": self.ex["hints"][: self.hints_used],
+                      "given": self.hint_texts,
                       "sources": self.hint_sources},
             "note_from_teacher": self.teacher_message,
+            "mentor_reply": self.mentor_reply,
+            "can_ask": self.state in HINT_STATES,
             "label": self.label,
             "mentor": mentor,
             "feedback": self.feedback,
