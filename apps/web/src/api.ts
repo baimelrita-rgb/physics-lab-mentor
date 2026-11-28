@@ -32,6 +32,22 @@ export type View = {
 };
 export type ExerciseItem = { id: string; number: string; status: string; available: boolean };
 export type TeacherExercise = ExerciseItem & { title: string; subtitle: string };
+export type LessonSettings = {
+  exercise_id: string; class_name: string; date: string; stations: number;
+  hint_quota: number; allow_ask: boolean; deduction: "none" | "per_hint"; planned: boolean; setup_ack: boolean;
+};
+export type LessonItem = {
+  id: string; code: string; exercise_id: string; number: string; title: string; joined: number; stations: number;
+  class_name: string; date: string; planned: boolean; closed: boolean;
+};
+export type PrepStation = { id: string; name: string; mode: string; status: string; components: string[]; usable: boolean; reason?: string };
+export type Preview = {
+  id: string; number: string; title: string; subtitle: string; status: string;
+  student: { goal: string; cards: string[]; check: string; predict: string; observe: string; stop_s: number;
+    hypotheses: string[]; channels: string[]; hints: string[]; recheck: string | null; exit: string };
+  key: { check_answer: string; cause: string; evidence: string[]; conclusion: string };
+  setup: { mode: string; steps: string[]; note: string; envelope: { id: string; title: string; status: string }[] };
+};
 
 export type Alert = { kind: string; title: string; text: string; suggest: string; station?: string; session?: string };
 export type Card = {
@@ -109,7 +125,11 @@ export const authApi = {
 
 export const teacherApi = {
   exercises: () => call<TeacherExercise[]>("GET", "/teacher/exercises"),
-  createLesson: (exercise_id: string) => call<Live>("POST", "/teacher/lessons", { exercise_id }),
+  createLesson: (body: Partial<LessonSettings> & { exercise_id: string }) => call<Live>("POST", "/teacher/lessons", body),
+  lessons: () => call<LessonItem[]>("GET", "/teacher/lessons"),
+  openLesson: (lid: string) => call<Live>("POST", `/teacher/lessons/${lid}/open`),
+  prepStations: () => call<PrepStation[]>("GET", "/teacher/prep/stations"),
+  preview: (id: string) => call<Preview>("GET", `/teacher/prep/${id}`),
   live: (lid: string) => call<Live>("GET", `/teacher/lessons/${lid}`),
   lessonAction: (lid: string, action: "pause" | "resume" | "close") => call<Live>("POST", `/teacher/lessons/${lid}/${action}`),
   detail: (sid: string) => call<Detail>("GET", `/teacher/sessions/${sid}`),

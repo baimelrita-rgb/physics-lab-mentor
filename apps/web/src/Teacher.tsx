@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ApiError, api, authApi, teacherApi, type Me, type Card, type Detail, type Live, type TeacherExercise } from "./api";
+import { ApiError, api, authApi, teacherApi, type Me, type Card, type Detail, type Live, type TeacherExercise, type LessonItem } from "./api";
 import { fmt } from "./Chart";
 
 const FLAG_STYLE: Record<string, [string, string]> = {
@@ -15,19 +15,43 @@ const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, 
 
 export function TeacherHome() {
   const [items, setItems] = useState<TeacherExercise[]>([]);
+  const [lessons, setLessons] = useState<LessonItem[]>([]);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => { teacherApi.exercises().then(setItems); }, []);
+  useEffect(() => { teacherApi.exercises().then(setItems); teacherApi.lessons().then(setLessons); }, []);
   const start = async (id: string) => {
-    try { const l = await teacherApi.createLesson(id); location.href = `/teacher/${l.lesson.id}`; }
+    try { const l = await teacherApi.createLesson({ exercise_id: id }); location.href = `/teacher/${l.lesson.id}`; }
     catch (e) { setError(e instanceof ApiError ? e.message : "שגיאה"); }
   };
+  const open = async (lid: string) => { await teacherApi.openLesson(lid); location.href = `/teacher/${lid}`; };
+  const [all, setAll] = useState(false);
+  const open_ = lessons.filter((l) => !l.closed).reverse();
+  const mine = all ? open_ : open_.slice(0, 5);
   return (
     <div className="t-page">
       <TeacherHeader />
       <div className="t-wrap">
         <section className="panel t-section">
-          <div className="t-h">פתיחת שיעור</div>
-          <p className="muted">בחרו תרגיל. המערכת תיצור קוד שיעור, והעמדות יצטרפו איתו.</p>
+          <div className="t-head-row">
+            <div className="t-h">השיעורים שלי</div>
+            <a className="primary link-btn" href="/teacher/prep">הכנת שיעור חדש</a>
+          </div>
+          {!mine.length && <p className="muted">אין שיעורים פתוחים או מתוכננים.</p>}
+          <div className="picker-list">
+            {mine.map((l) => (
+              <div key={l.id} className="picker-item">
+                <div><b>{l.number} · {l.title}</b>
+                  <div className="muted sm">{[l.class_name, l.date].filter(Boolean).join(" · ") || "ללא כיתה"} · קוד <span dir="ltr">{l.code}</span> · הצטרפו {l.joined}{l.class_name ? ` מתוך ${l.stations}` : ""}</div></div>
+                {l.planned
+                  ? <button className="primary lesson-go" onClick={() => open(l.id)}>פתיחת השיעור</button>
+                  : <a className="secondary auto lesson-go link-btn" href={`/teacher/${l.id}`}>לשיעור החי</a>}
+              </div>
+            ))}
+          </div>
+          {open_.length > 5 && <button className="more-btn" onClick={() => setAll(!all)}>{all ? "הצגת 5 האחרונים" : `הצגת כל ${open_.length} השיעורים`}</button>}
+        </section>
+        <section className="panel t-section">
+          <div className="t-h">פתיחה מהירה</div>
+          <p className="muted">פתיחת שיעור עם ברירות המחדל: 3 רמזים, שאלה פתוחה, ללא ניכוי. המערכת תיצור קוד שיעור, והעמדות יצטרפו איתו.</p>
           <div className="picker-list">
             {items.map((e) => (
               <button key={e.id} className="picker-item" disabled={!e.available} onClick={() => start(e.id)}>
@@ -43,7 +67,7 @@ export function TeacherHome() {
   );
 }
 
-function TeacherHeader() {
+export function TeacherHeader({ tab = "live" }: { tab?: "live" | "prep" }) {
   const [llm, setLlm] = useState<boolean | null>(null);
   const [me, setMe] = useState<Me | null>(null);
   useEffect(() => { api.status().then((x) => setLlm(x.llm)).catch(() => setLlm(null)); }, []);
@@ -55,8 +79,9 @@ function TeacherHeader() {
       <div className="t-header-in">
         <div className="t-brand">מנטור מעבדה · מורה</div>
         <nav className="t-tabs" aria-label="לשוניות">
-          <a href="/teacher" className="cur">שיעור חי</a>
-          {["הכנת שיעור", "תלמידים", "כיתה", "תוכן"].map((t) => <span key={t} title="בשלב הבא">{t}</span>)}
+          <a href="/teacher" className={tab === "live" ? "cur" : ""}>שיעור חי</a>
+          <a href="/teacher/prep" className={tab === "prep" ? "cur" : ""}>הכנת שיעור</a>
+          {["תלמידים", "כיתה", "תוכן"].map((t) => <span key={t} title="בשלב הבא">{t}</span>)}
         </nav>
         {me && !me.demo && (
           <span className="t-user">{me.name}

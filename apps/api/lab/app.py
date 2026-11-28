@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import content, llm, teacher
+from . import content, envelope, llm, teacher
 from .ingest import load_all, resolve
 from .live import FrameError, LiveStation
 from .session import GuardError, Session, exercise_number
@@ -59,6 +59,14 @@ class Join(BaseModel):
 
 class NewLesson(BaseModel):
     exercise_id: str
+    class_name: str = ""
+    date: str = ""
+    stations: int = 1
+    hint_quota: int = 3
+    allow_ask: bool = True
+    deduction: str = "none"
+    planned: bool = False
+    setup_ack: bool = True
 
 
 class Scores(BaseModel):
@@ -112,6 +120,8 @@ def _new_session(exercise_id: str, label: str, lesson: Lesson | None = None) -> 
         raise HTTPException(404, "exercise or recording not available")
     s = Session(exercise_id, rec, log_path=LOG, replay_speed=SPEED,
                 label=label.strip()[:30] or "עמדה", lesson_id=lesson.id if lesson else None, tutor=TUTOR)
+    if lesson:
+        s.hint_quota, s.allow_ask = lesson.hint_quota, lesson.allow_ask
     SESSIONS[s.id] = s
     STORE.save_session(s)
     if lesson:
@@ -127,7 +137,8 @@ def create_session(body: NewSession):
 
 @app.post("/api/join")
 def join(body: Join):
-    lesson = next((l for l in LESSONS.values() if l.code == body.code.strip() and not l.closed), None)
+    lesson = next((l for l in LESSONS.values()
+                   if l.code == body.code.strip() and not l.closed and not l.planned), None)
     if not lesson:
         raise HTTPException(404, "lesson code not found")
     return _new_session(lesson.exercise_id, body.label, lesson).student_view()
@@ -245,7 +256,14 @@ def me(request: Request):
 def create_lesson(body: NewLesson, user: str = Depends(require_teacher)):
     if body.exercise_id not in content.exercises()["exercises"]:
         raise HTTPException(404, "exercise not found")
-    lesson = Lesson(body.exercise_id, owner=user if user not in (DEMO_USER, "script") else "")
+    if not 0 <= body.hint_quota <= 3 or body.deduction not in ("none", "per_hint") or not 1 <= body.stations <= 40:
+        raise HTTPException(422, "invalid lesson settings")
+    if not body.setup_ack:
+        raise HTTPException(409, "setup and safety list not confirmed")
+    lesson = Lesson(body.exercise_id, owner=user if user not in (DEMO_USER, "script") else "",
+                    class_name=body.class_name.strip()[:40], date=body.date[:10], stations=body.stations,
+                    hint_quota=body.hint_quota, allow_ask=body.allow_ask, deduction=body.deduction,
+                    planned=body.planned)
     LESSONS[lesson.id] = lesson
     STORE.save_lesson(lesson)
     return teacher.live(lesson, SESSIONS)
@@ -261,8 +279,64 @@ def teacher_exercises(user: str = Depends(require_teacher)):
 
 @app.get("/api/teacher/lessons")
 def list_lessons(user: str = Depends(require_teacher)):
-    return [{"id": l.id, "code": l.code, "exercise_id": l.exercise_id, "stations": len(l.session_ids),
-             "closed": l.closed} for l in LESSONS.values() if _owns(user, l)]
+    return [{"id": l.id, "code": l.code, "exercise_id": l.exercise_id, "number": exercise_number(l.exercise_id),
+             "title": content.exercises()["exercises"][l.exercise_id]["title"],
+             "joined": len(l.session_ids), "stations": l.stations, "class_name": l.class_name, "date": l.date,
+             "planned": l.planned, "closed": l.closed}
+            for l in LESSONS.values() if _owns(user, l)]
+
+
+@app.get("/api/teacher/prep/stations")
+def prep_stations(user: str = Depends(require_teacher)):
+    """Stations a lesson can run on. MVP: the recorded station; live stations are listed for information."""
+    out = [{"id": "ST-MOT-VFD-1", "name": "עמדה 1 · מנוע השראה עם ווסת תדר", "mode": "recording",
+            "status": "הקלטות בלבד", "components": ["ווסת תדר", "מנוע השראה 370 W", "בלם מגנטי", "מד מומנט ומהירות", "מד רשת"],
+            "usable": True}]
+    for k, v in STATIONS.items():
+        out.append({"id": k, "name": f"עמדה חיה {k}", "mode": "live", "status": "מחוברת" if v.connected else "מנותקת",
+                    "components": [], "usable": False, "reason": "תרגול על נתונים חיים ייפתח אחרי אישור מפת הרגיסטרים של תלם"})
+    return out
+
+
+@app.get("/api/teacher/prep/{exercise_id}")
+def prep_preview(exercise_id: str, user: str = Depends(require_teacher)):
+    """One-page preview of what the students will see, plus the key (teacher only)."""
+    data = content.exercises()
+    ex = data["exercises"].get(exercise_id)
+    if not ex:
+        raise HTTPException(404, "exercise not found")
+    key = content.answer_key()[exercise_id]
+    cards = data["knowledge_cards"]
+    chan = {c["key"]: c["name"] for g in content.channels()["groups"] for c in g["channels"]}
+    return {
+        "id": exercise_id, "number": exercise_number(exercise_id), "title": ex["title"], "subtitle": ex["subtitle"],
+        "status": ex["status"],
+        "student": {
+            "goal": ex["goal"],
+            "cards": [cards[c]["title"] for c in ex["cards"]],
+            "check": ex["check"]["question"],
+            "predict": ex["predict"]["prompt"],
+            "observe": ex["observe_prompt"],
+            "stop_s": ex["stop_s"],
+            "hypotheses": [data["hypotheses"][h] for h in ex["hypothesis_options"]],
+            "channels": [chan.get(c, c) for c in ex["initial_channels"] + ex["openable_channels"]],
+            "hints": ex["hints"],
+            "recheck": ex.get("recheck_prompt"),
+            "exit": ex["exit_question"],
+        },
+        "key": {
+            "check_answer": ex["check"]["choices"][key["check_answer"]],
+            "cause": data["hypotheses"].get(key["cause"], key["cause"]),
+            "evidence": [e["label"] for e in key["evidence"]],
+            "conclusion": key["conclusion"],
+        },
+        "setup": {
+            "mode": "recording",
+            "steps": [],
+            "note": "במצב הקלטה התלמידים לא מפעילים את העמדה: הנתונים מנוגנים מהקלטה. אשף ההגדרה הפיזי ושערי הבטיחות שבו ייכנסו עם העמדה החיה.",
+            "envelope": [{"id": r["id"], "title": r["title"], "status": r["status"]} for r in envelope.rules()],
+        },
+    }
 
 
 @app.get("/api/teacher/lessons/{lid}")
@@ -273,13 +347,18 @@ def lesson_live(lid: str, user: str = Depends(require_teacher)):
 @app.post("/api/teacher/lessons/{lid}/{action}")
 def lesson_action(lid: str, action: str, user: str = Depends(require_teacher)):
     lesson = _lesson(lid, user)
+    if action not in ("pause", "resume", "close", "open"):
+        raise HTTPException(404, "unknown action")
+    if action == "open":
+        if lesson.planned:
+            lesson.planned, lesson.started = False, lesson.clock()
+            STORE.save_lesson(lesson)
+        return teacher.live(lesson, SESSIONS)
     for sid in lesson.session_ids:
         if action == "pause":
             SESSIONS[sid].pause()
         elif action == "resume":
             SESSIONS[sid].resume()
-        elif action != "close":
-            raise HTTPException(404, "unknown action")
         STORE.save_session(SESSIONS[sid])
     if action == "close":
         lesson.closed = True

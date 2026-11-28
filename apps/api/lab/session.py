@@ -66,6 +66,8 @@ class Session:
     exit_answer: str | None = None
     label: str = "עמדה 1"
     lesson_id: str | None = None
+    hint_quota: int = HINT_QUOTA                            # set by the teacher in lesson prep (0-3)
+    allow_ask: bool = True                                  # free question to the mentor allowed
     teacher_message: str | None = None
     hint_sources: list[str] = field(default_factory=list)   # "student" | "teacher", per level
     hint_texts: list[str] = field(default_factory=list)     # text actually shown, per level
@@ -229,7 +231,7 @@ class Session:
 
     def request_hint(self) -> str:
         self._require(*HINT_STATES)
-        if self.hints_used >= HINT_QUOTA:
+        if self.hints_used >= self.hint_quota:
             raise GuardError("no hints left")
         self.hints_used += 1
         self.hint_sources.append("student")
@@ -243,6 +245,8 @@ class Session:
     def ask(self, text: str) -> dict:
         """A free question in the mentor's AskField (UI doc: up to 300 characters)."""
         self._require(*HINT_STATES)
+        if not self.allow_ask:
+            raise GuardError("free questions are off in this lesson")
         text = text.strip()[:300]
         if not text:
             raise GuardError("empty question")
@@ -389,12 +393,12 @@ class Session:
             "series": {k: {"name": idx[k]["name"], "unit": idx[k]["unit"], "points": self._series(k, upto)}
                        for k in self.open_channels} if upto >= 0 else {},
             "readings": self.readings,
-            "hints": {"used": self.hints_used, "quota": HINT_QUOTA,
+            "hints": {"used": self.hints_used, "quota": self.hint_quota,
                       "given": self.hint_texts,
                       "sources": self.hint_sources},
             "note_from_teacher": self.teacher_message,
             "mentor_reply": self.mentor_reply,
-            "can_ask": self.state in HINT_STATES,
+            "can_ask": self.allow_ask and self.state in HINT_STATES,
             "label": self.label,
             "mentor": mentor,
             "feedback": self.feedback,

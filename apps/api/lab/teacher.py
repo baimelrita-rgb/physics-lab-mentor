@@ -40,6 +40,14 @@ class Lesson:
     session_ids: list[str] = field(default_factory=list)
     closed: bool = False
     owner: str = ""             # teacher username; "" = demo mode
+    # Lesson prep (UI doc: teacher screens, lesson prep wizard).
+    class_name: str = ""
+    date: str = ""
+    stations: int = 1
+    hint_quota: int = HINT_QUOTA
+    allow_ask: bool = True
+    deduction: str = "none"     # "none" | "per_hint": one point off the total per hint the student asked for
+    planned: bool = False       # saved for later; stations cannot join until the teacher opens it
 
     def __post_init__(self):
         self.started = self.clock()
@@ -122,7 +130,7 @@ def alerts(s: Session) -> list[dict]:
         out.append({"kind": "stuck", "title": "תקוע",
                     "text": f"{s.label}: {secs // 60}:{secs % 60:02d} דקות בשלב {STATE_LABEL[s.state]}{extra}.",
                     "suggest": "שאלו: איזו מדידה תבדיל בין שתי ההשערות שלכם?"})
-    if s.hints_used >= HINT_QUOTA:
+    if s.hint_quota and s.hints_used >= s.hint_quota:
         out.append({"kind": "hint3", "title": "הגיע לרמז 3", "text": f"{s.label} השתמש ברמז האחרון.",
                     "suggest": "בדקו בעל פה אם הקבוצה יודעת מה היא מחפשת בגרף."})
     off = [q for q in s.asks if q["intent"] == "off_topic"]
@@ -140,7 +148,11 @@ def alerts(s: Session) -> list[dict]:
 URGENCY = {"safety": -1, "stuck": 0, "hint3": 1}
 
 
-def card(s: Session, index: int) -> dict:
+def deduction(s: Session, policy: str) -> int:
+    return s.hint_sources.count("student") if policy == "per_hint" else 0
+
+
+def card(s: Session, index: int, policy: str = "none") -> dict:
     al = alerts(s)
     urgency = min([URGENCY.get(a["kind"], 2) for a in al], default=3)
     hyp = content.exercises()["hypotheses"].get(s.hypothesis) if s.hypothesis else None
@@ -149,15 +161,16 @@ def card(s: Session, index: int) -> dict:
     return {
         "id": s.id, "label": s.label, "index": index, "state": s.state, "stage": STATE_LABEL[s.state],
         "step": STEP_OF[s.state], "seconds_in_state": int(s.time_in_state()), "paused": s.paused,
-        "hypothesis": s.hypothesis, "hypothesis_label": hyp, "hints_used": s.hints_used, "quota": HINT_QUOTA,
+        "hypothesis": s.hypothesis, "hypothesis_label": hyp, "hints_used": s.hints_used, "quota": s.hint_quota,
         "flag": flag, "urgency": urgency, "alerts": al, "rubric": scores, "confirmed": s.teacher_scores is not None,
-        "total": sum(x for x in scores if x is not None),
+        "deduction": deduction(s, policy),
+        "total": max(0, sum(x for x in scores if x is not None) - deduction(s, policy)),
     }
 
 
 def live(lesson: Lesson, sessions: dict[str, Session]) -> dict:
     ss = [sessions[i] for i in lesson.session_ids if i in sessions]
-    cards = [card(s, i + 1) for i, s in enumerate(ss)]
+    cards = [card(s, i + 1, lesson.deduction) for i, s in enumerate(ss)]
     # Order: safety, stuck, quota used up, then station number (UI doc · live lesson).
     cards.sort(key=lambda c: (c["urgency"], c["index"]))
     counts: dict[str, set] = {}
@@ -227,7 +240,7 @@ def export_csv(lesson: Lesson, sessions: dict[str, Session]) -> str:
     w = csv.writer(buf)
     w.writerow(["עמדה", "תרגיל", "שלב אחרון", "השערה", "רמזים", "קריאות", "ניסיונות נימוק",
                 *[f"{a} (מוצע)" for a in RUBRIC], *[f"{a} (מאושר)" for a in RUBRIC],
-                "סה״כ", "ציון אושר", "תפיסות שגויות", "שאלת יציאה", "הערת מורה"])
+                "ניכוי רמזים", "סה״כ", "ציון אושר", "תפיסות שגויות", "שאלת יציאה", "הערת מורה"])
     for sid in lesson.session_ids:
         s = sessions.get(sid)
         if not s:
@@ -238,6 +251,7 @@ def export_csv(lesson: Lesson, sessions: dict[str, Session]) -> str:
                     s.hints_used, len(s.readings), len(s.attempts),
                     *["" if x is None else x for x in sug],
                     *(s.teacher_scores or [""] * len(RUBRIC)),
-                    sum(x for x in final if x is not None), "כן" if s.teacher_scores else "לא",
+                    deduction(s, lesson.deduction),
+                    max(0, sum(x for x in final if x is not None) - deduction(s, lesson.deduction)), "כן" if s.teacher_scores else "לא",
                     " ".join(misconceptions_of(s)), s.exit_answer or "", s.teacher_note])
     return "\ufeff" + buf.getvalue()

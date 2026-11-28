@@ -198,3 +198,29 @@ a.picker-item { color: inherit; text-decoration: none; }
 .t-user { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: #D5DBE2; }
 .t-logout { background: none; border: 1px solid #4A535E; color: #D5DBE2; border-radius: 8px; padding: 4px 10px; font-size: 13px; }
 .t-demo { background: #4A3A1C; color: #F6D9A8; font-size: 13px; padding: 6px 24px; margin: 0 -24px; text-align: center; }
+/* Lesson prep wizard */
+.stepper .step { border: none; font: inherit; cursor: pointer; }
+.stepper .step:not(.cur) { background: none; }
+.t-section > .secondary.auto { align-self: flex-start; }
+.stepper .step:disabled { cursor: default; }
+.prep { max-width: 980px; }
+.prep-row { display: flex; gap: 16px; flex-wrap: wrap; }
+.prep-row .field-label { display: flex; flex-direction: column; gap: 6px; flex: 1 1 180px; }
+.picker-item.sel { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary) inset; }
+.picker-item.off { opacity: .7; }
+.prep-dl { display: grid; grid-template-columns: 170px 1fr; gap: 8px 16px; margin: 0; }
+.prep-dl dt { color: var(--muted); font-size: 14px; }
+.prep-dl dd { margin: 0; }
+.prep-dl ol { margin: 0; padding-inline-start: 18px; }
+.prep-dl.key { background: #FFF6E5; border: 1px solid #F0D39A; border-radius: 10px; padding: 12px 16px; }
+.prep-rules { margin: 0; padding-inline-start: 18px; display: flex; flex-direction: column; gap: 4px; }
+.prep-check { display: flex; gap: 10px; align-items: center; font-weight: 600; }
+.prep-check input { width: 20px; height: 20px; }
+.prep-summary { background: #F3F5F8; border-radius: 10px; padding: 12px 16px; }
+.prep-finish, .prep-nav { display: flex; gap: 10px; justify-content: flex-end; }
+.t-head-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.link-btn { display: inline-flex; align-items: center; text-decoration: none; }
+a.secondary.link-btn { color: var(--text); }
+.more-btn { align-self: flex-start; background: none; border: none; color: var(--primary); font: inherit; padding: 4px 0; cursor: pointer; }
+.lesson-go { margin-inline-start: auto; }
+@media (max-width: 640px) { .prep-dl { grid-template-columns: 1fr; } .prep-dl dt { margin-top: 6px; } }

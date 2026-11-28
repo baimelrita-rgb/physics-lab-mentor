@@ -4,6 +4,7 @@ import { api, ApiError, type ExerciseItem } from "./api";
 import { Station } from "./Station";
 import { Monitor, MonitorList } from "./Monitor";
 import { TeacherHome, TeacherLive, TeacherLogin } from "./Teacher";
+import { LessonPrep } from "./Prep";
 import "./styles.css";
 
 // Routes:
@@ -16,6 +17,7 @@ function App() {
   let m;
   if ((m = path.match(/^\/station\/(\w+)/))) return <Station id={m[1]} />;
   if (path.startsWith("/teacher/login")) return <TeacherLogin />;
+  if (path.startsWith("/teacher/prep")) return <LessonPrep />;
   if ((m = path.match(/^\/teacher\/(\w+)/))) return <TeacherLive lessonId={m[1]} />;
   if (path.startsWith("/teacher")) return <TeacherHome />;
   if ((m = path.match(/^\/monitor\/([\w-]+)/))) return <Monitor id={m[1]} />;
