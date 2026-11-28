@@ -28,7 +28,7 @@ jobs:
           cache-dependency-path: apps/web/package-lock.json
       - name: Install
         run: |
-          pip install -r apps/api/requirements.txt
+          pip install -r apps/api/requirements.txt -r apps/api/requirements-dev.txt
           (cd apps/web && npm ci --no-audit --no-fund)
       - name: Server tests
         working-directory: apps/api
