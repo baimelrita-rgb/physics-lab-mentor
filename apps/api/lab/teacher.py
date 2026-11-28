@@ -33,7 +33,7 @@ STATE_LABEL = {"THEORY": "רקע", "PREDICT": "תחזית", "OBSERVE": "צפיי
 @dataclass
 class Lesson:
     exercise_id: str
-    clock: callable = time.monotonic
+    clock: callable = time.time
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
     code: str = field(default_factory=lambda: f"{random.randint(0, 999999):06d}")
     started: float = 0.0

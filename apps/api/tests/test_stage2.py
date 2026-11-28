@@ -79,3 +79,24 @@ def test_api_lesson_join_and_answer_wall():
     assert c.get(f"/api/sessions/{st['id']}").json()["paused"] is True
     c.post(f"/api/teacher/sessions/{st['id']}/message", json={"text": "בדקו את תדר היציאה"})
     assert c.get(f"/api/sessions/{st['id']}").json()["note_from_teacher"] == "בדקו את תדר היציאה"
+
+
+def test_state_survives_restart(recs, tmp_path):
+    from lab.store import Store
+    s, clock = _to_evidence(recs)
+    s.label = "קבוצה ב"
+    s.open_channel("torque_nm")
+    s.add_reading("torque_nm", 20)
+    s.request_hint()
+    lesson = teacher.Lesson("EX-01")
+    lesson.session_ids.append(s.id)
+    store = Store(tmp_path)
+    store.save_session(s)
+    store.save_lesson(lesson)
+
+    sessions, lessons = Store(tmp_path).load(recs, log_path=None, replay_speed=1, tutor=None)
+    s2 = sessions[s.id]
+    assert (s2.state, s2.label, s2.hypothesis, s2.hints_used) == ("EVIDENCE", "קבוצה ב", "H-LOAD", 1)
+    assert s2.readings == s.readings and s2.open_channels == s.open_channels
+    assert s2.add_reading("torque_nm", 5)["id"] == "r2"      # ids continue, no collision
+    assert lessons[lesson.id].code == lesson.code and lessons[lesson.id].session_ids == [s.id]

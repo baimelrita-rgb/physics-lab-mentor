@@ -13,15 +13,17 @@ from . import content, llm, teacher
 from .ingest import load_all, resolve
 from .session import GuardError, Session
 from .teacher import Lesson
+from .store import Store
 from .tutor import Tutor
 
 app = FastAPI(title="Lab Mentor")
 RECORDINGS = load_all(content.DATA)
-SESSIONS: dict[str, Session] = {}
-LESSONS: dict[str, Lesson] = {}
 TUTOR = Tutor()
 LOG = content.ROOT / "var" / "learning_log.jsonl"
 SPEED = float(os.environ.get("REPLAY_SPEED", "1"))
+STORE = Store(Path(os.environ.get("STATE_DIR", content.ROOT / "var" / "state")))
+# Sessions and lessons survive a server restart.
+SESSIONS, LESSONS = STORE.load(RECORDINGS, log_path=LOG, replay_speed=SPEED, tutor=TUTOR)
 
 
 def _session(sid: str) -> Session:
@@ -37,6 +39,8 @@ def _run(sid: str, fn):
         fn(s)
     except GuardError as e:
         raise HTTPException(409, {"code": "STATE_GUARD_FAILED", "detail": str(e)})
+    finally:
+        STORE.save_session(s)
     return s.student_view()
 
 
@@ -100,8 +104,10 @@ def _new_session(exercise_id: str, label: str, lesson: Lesson | None = None) -> 
     s = Session(exercise_id, rec, log_path=LOG, replay_speed=SPEED,
                 label=label.strip()[:30] or "עמדה", lesson_id=lesson.id if lesson else None, tutor=TUTOR)
     SESSIONS[s.id] = s
+    STORE.save_session(s)
     if lesson:
         lesson.session_ids.append(s.id)
+        STORE.save_lesson(lesson)
     return s
 
 
@@ -141,6 +147,7 @@ def create_lesson(body: NewLesson, x_teacher_token: str | None = Header(None)):
         raise HTTPException(404, "exercise not found")
     lesson = Lesson(body.exercise_id)
     LESSONS[lesson.id] = lesson
+    STORE.save_lesson(lesson)
     return teacher.live(lesson, SESSIONS)
 
 
@@ -168,8 +175,10 @@ def lesson_action(lid: str, action: str, x_teacher_token: str | None = Header(No
             SESSIONS[sid].resume()
         elif action != "close":
             raise HTTPException(404, "unknown action")
+        STORE.save_session(SESSIONS[sid])
     if action == "close":
         lesson.closed = True
+        STORE.save_lesson(lesson)
     return teacher.live(lesson, SESSIONS)
 
 
@@ -196,6 +205,7 @@ def session_action(sid: str, action: str, body: Text | None = None, x_teacher_to
             raise HTTPException(404, "unknown action")
     except GuardError as e:
         raise HTTPException(409, {"code": "STATE_GUARD_FAILED", "detail": str(e)})
+    STORE.save_session(s)
     return teacher.detail(s)
 
 

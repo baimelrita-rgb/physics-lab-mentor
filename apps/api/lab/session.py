@@ -44,7 +44,7 @@ class GuardError(Exception):
 class Session:
     exercise_id: str
     recording: Recording
-    clock: Callable[[], float] = time.monotonic
+    clock: Callable[[], float] = time.time
     log_path: Path | None = None
     replay_speed: float = 1.0
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
