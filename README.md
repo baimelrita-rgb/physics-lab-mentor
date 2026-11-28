@@ -17,12 +17,14 @@
 | `apps/web/` | מסך העמדה (React) |
 | `content/` | תוכן התרגילים, קטלוג הערוצים, ומפתח התשובות (`answer_key.yaml`, לשרת בלבד) |
 
+- **שלב 4 · השלמות להדגמה:** תרגיל EX-05 (שתי ההרצות התקינות ברצף), שמירת סשנים ושיעורים לדיסק כך שאתחול השרת לא מוחק שיעור פעיל, סקריפט הפעלה וקובץ Docker.
+
 ### הרצה מקומית
 
+נדרשים Python 3.11 ומעלה ו־Node.js 20 ומעלה. פקודה אחת מתקינה, בונה ומפעילה:
+
 ```bash
-pip install fastapi uvicorn pyyaml pytest httpx
-cd apps/web && npm install && npm run build && cd ../..
-cd apps/api && python3 -m uvicorn lab.app:app --port 8000
+./run.sh
 ```
 
 אחר כך פותחים את http://localhost:8000. בדיקות: `cd apps/api && python3 -m pytest`.
@@ -34,6 +36,15 @@ cd apps/api && python3 -m uvicorn lab.app:app --port 8000
 | `/demo` | תרגול בלי שיעור |
 
 הגדרות שרת להדגמה: `REPLAY_SPEED=4` מנגן את ההקלטה מהר יותר. `STUCK_SECONDS=60` מקצר את הזמן עד התראת ״תקוע״ (ברירת מחדל 300). `TEACHER_TOKEN=...` דורש קוד גישה למסך המורה. זו הגנה בסיסית להדגמה בלבד: לפני פיילוט צריך כניסת מורים אמיתית.
+
+### Docker
+
+```bash
+docker build -t lab-mentor .
+docker run -p 8000:8000 -v lab-state:/app/var -e ANTHROPIC_API_KEY=... lab-mentor
+```
+
+הסשנים, השיעורים ויומן הלמידה נשמרים בתיקייה `var/`, ובקונטיינר זה ה־volume שנקרא `lab-state`. קובץ ה־Docker עוד לא נבדק עד הסוף: בסביבת הפיתוח החסימות ברשת לא אפשרו להשלים את הבנייה.
 
 ### כלים
 
