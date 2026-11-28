@@ -7,6 +7,7 @@ import { TeacherHome, TeacherLive, TeacherLogin } from "./Teacher";
 import { LessonPrep } from "./Prep";
 import { ClassView } from "./ClassView";
 import { Students } from "./Students";
+import { ContentTab } from "./Content";
 import "./styles.css";
 
 // Routes:
@@ -22,6 +23,7 @@ function App() {
   if (path.startsWith("/teacher/prep")) return <LessonPrep />;
   if (path.startsWith("/teacher/class")) return <ClassView />;
   if (path.startsWith("/teacher/students")) return <Students />;
+  if (path.startsWith("/teacher/content")) return <ContentTab />;
   if ((m = path.match(/^\/teacher\/(\w+)/))) return <TeacherLive lessonId={m[1]} />;
   if (path.startsWith("/teacher")) return <TeacherHome />;
   if ((m = path.match(/^\/monitor\/([\w-]+)/))) return <Monitor id={m[1]} />;

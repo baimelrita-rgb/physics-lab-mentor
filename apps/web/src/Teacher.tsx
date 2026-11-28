@@ -67,7 +67,7 @@ export function TeacherHome() {
   );
 }
 
-export function TeacherHeader({ tab = "live" }: { tab?: "live" | "prep" | "class" | "students" }) {
+export function TeacherHeader({ tab = "live" }: { tab?: "live" | "prep" | "class" | "students" | "content" }) {
   const [llm, setLlm] = useState<boolean | null>(null);
   const [me, setMe] = useState<Me | null>(null);
   useEffect(() => { api.status().then((x) => setLlm(x.llm)).catch(() => setLlm(null)); }, []);
@@ -83,7 +83,7 @@ export function TeacherHeader({ tab = "live" }: { tab?: "live" | "prep" | "class
           <a href="/teacher/prep" className={tab === "prep" ? "cur" : ""}>הכנת שיעור</a>
           <a href="/teacher/students" className={tab === "students" ? "cur" : ""}>תלמידים</a>
           <a href="/teacher/class" className={tab === "class" ? "cur" : ""}>כיתה</a>
-          <span title="בשלב הבא">תוכן</span>
+          <a href="/teacher/content" className={tab === "content" ? "cur" : ""}>תוכן</a>
         </nav>
         {me && !me.demo && (
           <span className="t-user">{me.name}

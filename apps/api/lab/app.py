@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import classview, content, envelope, llm, setup, students, teacher
+from . import classview, content, editor, envelope, llm, setup, students, teacher
 from .roster import Roster, RosterError
 from .ingest import load_all, resolve
 from .live import FrameError, LiveStation
@@ -406,6 +406,58 @@ def student_detail(student_id: str, class_name: str, user: str = Depends(require
     if not d:
         raise HTTPException(404, "student not found")
     return d
+
+
+class ContentEdit(BaseModel):
+    changes: dict
+
+
+def _who(user: str) -> str:
+    return {"demo": "מצב הדגמה", "script": "סקריפט"}.get(user) or AUTH.name(user)
+
+
+@app.get("/api/teacher/content")
+def content_list(user: str = Depends(require_teacher)):
+    exs = content.exercises()["exercises"]
+    layer = content.overrides()
+    return [{"id": k, "number": exercise_number(k), "title": v["title"], "subtitle": v["subtitle"],
+             "status": v["status"], "errors": len(editor.validate(k)),
+             "edited": k in layer.get("exercises", {}) or k in layer.get("answer_key", {})} for k, v in exs.items()]
+
+
+@app.get("/api/teacher/content/export.yaml")
+def content_export(user: str = Depends(require_teacher)):
+    return Response(editor.export_yaml(), media_type="text/yaml; charset=utf-8",
+                    headers={"Content-Disposition": 'attachment; filename="content-changes.yaml"'})
+
+
+@app.get("/api/teacher/content/{eid}")
+def content_get(eid: str, user: str = Depends(require_teacher)):
+    try:
+        return editor.current(eid)
+    except editor.EditError as e:
+        raise HTTPException(404, str(e))
+
+
+@app.put("/api/teacher/content/{eid}")
+def content_save(eid: str, body: ContentEdit, user: str = Depends(require_teacher)):
+    try:
+        res = editor.save(eid, body.changes, _who(user))
+    except editor.EditError as e:
+        raise HTTPException(422, str(e))
+    return dict(res, exercise=editor.current(eid))
+
+
+@app.post("/api/teacher/content/{eid}/{action}")
+def content_action(eid: str, action: str, user: str = Depends(require_teacher)):
+    try:
+        if action == "approve":
+            return editor.approve(eid, _who(user))
+        if action == "revert":
+            return editor.revert(eid, _who(user))
+    except editor.EditError as e:
+        raise HTTPException(409, str(e))
+    raise HTTPException(404, "unknown action")
 
 
 @app.get("/api/teacher/classes")

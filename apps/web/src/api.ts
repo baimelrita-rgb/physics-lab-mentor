@@ -56,6 +56,15 @@ export type Preview = {
     envelope: { id: string; title: string; status: string; level: "ok" | "warn" | "stop"; value: number | null; limit: number | null }[];
   };
 };
+export type ContentItem = { id: string; number: string; title: string; subtitle: string; status: string; errors: number; edited: boolean };
+export type ContentField = { path: string; label: string; kind: "text" | "list" | "index"; audience: "student" | "teacher";
+  source: string; value: unknown; changed: boolean };
+export type ContentDoc = {
+  id: string; number: number; status: string; base_status: string; approved_by: string | null; approved_at: string | null;
+  fields: ContentField[]; errors: { path: string; message: string }[];
+  fixed: { recording: string; stop_s: number; cause: string; evidence: string[] };
+  history: { exercise: string; at: string; by: string; field: string }[];
+};
 export type RosterStudent = { id: string; name: string; active: boolean };
 export type Mis = { id: string; label: string };
 export type StudentsOverview = {
@@ -163,6 +172,11 @@ export const teacherApi = {
   createLesson: (body: Partial<LessonSettings> & { exercise_id: string }) => call<Live>("POST", "/teacher/lessons", body),
   lessons: () => call<LessonItem[]>("GET", "/teacher/lessons"),
   openLesson: (lid: string) => call<Live>("POST", `/teacher/lessons/${lid}/open`),
+  contentList: () => call<ContentItem[]>("GET", "/teacher/content"),
+  content: (id: string) => call<ContentDoc>("GET", `/teacher/content/${id}`),
+  contentSave: (id: string, changes: Record<string, unknown>) =>
+    call<{ saved: boolean; changed: string[]; errors: { path: string; message: string }[]; exercise: ContentDoc }>("PUT", `/teacher/content/${id}`, { changes }),
+  contentAction: (id: string, action: "approve" | "revert") => call<ContentDoc>("POST", `/teacher/content/${id}/${action}`),
   roster: (class_name: string) => call<RosterStudent[]>("GET", `/teacher/roster?class_name=${encodeURIComponent(class_name)}`),
   rosterAdd: (class_name: string, names: string[]) => call<RosterStudent[]>("POST", "/teacher/roster", { class_name, names }),
   rosterEdit: (id: string, class_name: string, patch: { name?: string; active?: boolean }) =>
