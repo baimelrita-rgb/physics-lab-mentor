@@ -32,8 +32,8 @@ class Result:
         return {"outcome": self.outcome, "message": self.message, "passed": self.passed}
 
 
-def check_theory(exercise_id: str, choice: int) -> bool:
-    return content.answer_key()[exercise_id]["check_answer"] == choice
+def check_theory(key: dict, choice: int) -> bool:
+    return key["check_answer"] == choice
 
 
 def _satisfied(item: dict, readings: list[dict]) -> bool:
@@ -44,9 +44,8 @@ def _satisfied(item: dict, readings: list[dict]) -> bool:
     )
 
 
-def evaluate(exercise_id: str, hypothesis: str | None, cited: list[dict]) -> Result:
-    key = content.answer_key()[exercise_id]
-    redirects = content.answer_key()["misconception_redirects"]
+def evaluate(key: dict, redirects: dict, hypothesis: str | None, cited: list[dict]) -> Result:
+    """key / redirects come from the session's pinned content version."""
     missing = [i["label"] for i in key["evidence"] if not _satisfied(i, cited)]
     bad_quality = [r for r in cited if r["quality"] != "ok"]
     detail = {"hypothesis": hypothesis, "cause": key["cause"], "missing_evidence": missing,

@@ -20,9 +20,8 @@ GENERIC_PROBE = {
 }
 
 
-def leak_terms(exercise_id: str) -> list[str]:
-    key = content.answer_key()[exercise_id]
-    return list(key.get("leak_terms", []))
+def leak_terms(session) -> list[str]:
+    return list(session.key.get("leak_terms", []))
 
 
 def facts_of(session) -> list[str]:
@@ -47,7 +46,7 @@ class Tutor:
         if not self.live:
             return {"text": approved, "chips": [], "source": "static", "failures": []}
         out, fails = self.gw.phrase(move=move, state=session.state, approved=approved, facts=facts_of(session),
-                                    student_text=student_text, forbidden=leak_terms(session.exercise_id),
+                                    student_text=student_text, forbidden=leak_terms(session),
                                     misconceptions=mis)
         if out is None:
             return {"text": approved, "chips": [], "source": "static", "failures": fails}

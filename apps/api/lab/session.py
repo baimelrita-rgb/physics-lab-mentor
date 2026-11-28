@@ -70,6 +70,7 @@ class Session:
     allow_ask: bool = True                                  # free question to the mentor allowed
     members: list[str] = field(default_factory=list)        # roster ids of the students in this group
     token: str = ""                                         # group token (cookie); never sent in student_view
+    pinned: dict = field(default_factory=dict)              # content snapshot: exercise, key, redirects, version
     teacher_message: str | None = None
     hint_sources: list[str] = field(default_factory=list)   # "student" | "teacher", per level
     hint_texts: list[str] = field(default_factory=list)     # text actually shown, per level
@@ -87,17 +88,33 @@ class Session:
     _ids: itertools.count = field(default_factory=lambda: itertools.count(1))
 
     def __post_init__(self):
+        if not self.pinned:
+            self.pinned = content.snapshot(self.exercise_id)
         ex = self.ex
         self.open_channels = list(ex["initial_channels"])
         self.state_entered = self.clock()
         # Random alias per session, so students cannot pass answers by run name (Brain 3).
         self.alias = f"הרצה {random.choice('אבגדהזחטכלמנסעפקרשת')}־{random.randint(1, 9)}"
-        self._log("session.opened", exercise=self.exercise_id, recording=self.recording.run_id)
+        self._log("session.opened", exercise=self.exercise_id, recording=self.recording.run_id,
+                  content_version=self.content_version)
 
     # ---------- helpers ----------
     @property
     def ex(self) -> dict:
-        return content.exercises()["exercises"][self.exercise_id]
+        return self.pinned["exercise"]
+
+    @property
+    def key(self) -> dict:
+        """Answer key of this session's content version (server side only)."""
+        return self.pinned["key"]
+
+    @property
+    def redirects(self) -> dict:
+        return self.pinned["redirects"]
+
+    @property
+    def content_version(self) -> str:
+        return self.pinned.get("version", "")
 
     def _log(self, type_: str, **payload):
         self.events.append({"at": self.clock(), "state": self.state, "type": type_, **payload})
@@ -182,7 +199,7 @@ class Session:
     # ---------- actions ----------
     def answer_theory(self, choice: int) -> bool:
         self._require("THEORY")
-        ok = diagnosis.check_theory(self.exercise_id, choice)
+        ok = diagnosis.check_theory(self.key, choice)
         self.theory_answer = {"choice": choice, "correct": ok}
         self._log("theory.answered", choice=choice, correct=ok)
         return ok
@@ -276,7 +293,7 @@ class Session:
         cited = [r for r in self.readings if r["id"] in cited_ids]
         if len(cited) < MIN_READINGS and self.hypothesis != "H-INSUFFICIENT":
             raise GuardError(f"cite at least {MIN_READINGS} readings")
-        res = diagnosis.evaluate(self.exercise_id, self.hypothesis, cited)
+        res = diagnosis.evaluate(self.key, self.redirects, self.hypothesis, cited)
         text = text.strip()[:300]
         # The classifier only informs the teacher; the decision above stays deterministic.
         cls = self.tutor.classify(self, text) if (self.tutor and text) else None

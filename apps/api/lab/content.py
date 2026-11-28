@@ -87,6 +87,19 @@ def answer_key() -> dict:
     return _apply(base_answer_key(), overrides().get("answer_key", {}))
 
 
+def snapshot(exercise_id: str) -> dict:
+    """Frozen copy of everything a session needs about its exercise, with a short version id.
+    A session keeps this copy, so editing the exercise later never changes a running or
+    graded session (MVP package 5)."""
+    import hashlib
+    doc = {"exercise": copy.deepcopy(exercises()["exercises"][exercise_id]),
+           "key": copy.deepcopy(answer_key()[exercise_id]),
+           "redirects": copy.deepcopy(answer_key().get("misconception_redirects", {}))}
+    raw = json.dumps(doc, ensure_ascii=False, sort_keys=True).encode()
+    doc["version"] = hashlib.sha256(raw).hexdigest()[:12]
+    return doc
+
+
 def reload():
     exercises.cache_clear()
     answer_key.cache_clear()

@@ -54,8 +54,8 @@ class Lesson:
         self.started = self.clock()
 
 
-def evidence_channels(exercise_id: str) -> set[str]:
-    key = content.answer_key()[exercise_id]
+def evidence_channels(s: Session) -> set[str]:
+    key = s.key
     return {c for item in key["evidence"] for c in item["any_of"]}
 
 
@@ -74,13 +74,13 @@ def misconceptions_of(s: Session) -> list[str]:
 
 def rubric(s: Session) -> list[int | None]:
     """Suggested score per aspect, 0-2, or None while it cannot be judged yet. The teacher confirms."""
-    ev = evidence_channels(s.exercise_id) - set(s.ex["initial_channels"])
+    ev = evidence_channels(s) - set(s.ex["initial_channels"])
     passed = any(a["passed"] for a in s.attempts)
 
     pred = None
     if STEP_OF[s.state] > 1:
         dirs = (s.prediction or {}).get("directions", {})
-        pred = 2 if (set(dirs) & evidence_channels(s.exercise_id)) and s.hypothesis else (1 if s.prediction else 0)
+        pred = 2 if (set(dirs) & evidence_channels(s)) and s.hypothesis else (1 if s.prediction else 0)
 
     test = None
     if s.state in INVESTIGATION | {"RECHECK", "EXIT", "CLOSED"}:
@@ -142,7 +142,7 @@ def alerts(s: Session) -> list[dict]:
     for m in misconceptions_of(s)[-1:]:
         out.append({"kind": "misconception", "title": f"תפיסה שגויה {m}",
                     "text": f"{s.label}: {MISCONCEPTIONS[m]}.",
-                    "suggest": content.answer_key()["misconception_redirects"][m]})
+                    "suggest": s.redirects.get(m, "")})
     return out
 
 
@@ -195,7 +195,7 @@ def live(lesson: Lesson, sessions: dict[str, Session]) -> dict:
 
 def detail(s: Session) -> dict:
     """Everything about one station, including the answer key (teacher only)."""
-    key = content.answer_key()[s.exercise_id]
+    key = s.key
     hyp = content.exercises()["hypotheses"]
     t0 = s.events[0]["at"] if s.events else 0
     names = {k: v["name"] for k, v in content.channel_index().items()}
@@ -242,7 +242,7 @@ def export_csv(lesson: Lesson, sessions: dict[str, Session]) -> str:
     w = csv.writer(buf)
     w.writerow(["עמדה", "תרגיל", "שלב אחרון", "השערה", "רמזים", "קריאות", "ניסיונות נימוק",
                 *[f"{a} (מוצע)" for a in RUBRIC], *[f"{a} (מאושר)" for a in RUBRIC],
-                "ניכוי רמזים", "סה״כ", "ציון אושר", "תפיסות שגויות", "שאלת יציאה", "הערת מורה"])
+                "ניכוי רמזים", "סה״כ", "ציון אושר", "תפיסות שגויות", "שאלת יציאה", "הערת מורה", "גרסת תוכן"])
     from .security import csv_safe
     for sid in lesson.session_ids:
         s = sessions.get(sid)
@@ -256,5 +256,5 @@ def export_csv(lesson: Lesson, sessions: dict[str, Session]) -> str:
                     *(s.teacher_scores or [""] * len(RUBRIC)),
                     deduction(s, lesson.deduction),
                     max(0, sum(x for x in final if x is not None) - deduction(s, lesson.deduction)), "כן" if s.teacher_scores else "לא",
-                    " ".join(misconceptions_of(s)), s.exit_answer or "", s.teacher_note]])
+                    " ".join(misconceptions_of(s)), s.exit_answer or "", s.teacher_note, s.content_version]])
     return "\ufeff" + buf.getvalue()
