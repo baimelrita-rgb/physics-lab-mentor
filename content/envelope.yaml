@@ -1,0 +1,44 @@
+# Safety envelope for station type ST-MOT-VFD (Brain 1 · limits guide).
+# Only the rules that can be checked from measurements are here. R-MOT-04/05/07/08 are
+# preconditions and safety gates of the setup wizard (later stage).
+# status: proposed = waiting for Talem approval. Nothing here is approved yet.
+# hold_s: the condition must hold this many consecutive seconds ("sustained"), to ignore spikes.
+station_type: ST-MOT-VFD
+rules:
+  - id: R-MOT-01
+    title: זרם קו מעל הנקוב
+    channels: [i_u_rms_a, i_v_rms_a, i_w_rms_a]
+    max: 1.17
+    warn_ratio: 0.95
+    hold_s: 2
+    severity: stop
+    source: "לוחית: 1.17 A במשולש"
+    status: proposed
+  - id: R-MOT-02
+    title: מומנט עומס מעל הנקוב
+    channels: [torque_nm]
+    max: 2.58
+    warn_ratio: 0.95
+    hold_s: 2
+    severity: stop
+    source: "מחושב: 370 W ב־1,370 סל״ד"
+    status: proposed
+  - id: R-MOT-03
+    title: תדר יציאה מחוץ לתחום שאושר
+    channels: [f_drive_hz]
+    min: 10
+    max: 50
+    active_above: 0.5      # the rule applies only while the drive outputs a frequency
+    hold_s: 3
+    severity: stop
+    source: "מוצע: 10–50 Hz"
+    status: proposed
+  - id: R-MOT-06
+    title: טמפרטורת מעטפת גבוהה
+    channels: [motor_temp_c]
+    max: 70
+    warn_ratio: 0.8
+    hold_s: 2
+    severity: stop
+    source: "מוצע: 70 °C במעטפת, התראה מעל 80%"
+    status: proposed

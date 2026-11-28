@@ -10,7 +10,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 
-from . import content
+from . import content, envelope
 from .session import HINT_QUOTA, STEP_OF, STEPS, Session
 
 # A station is "stuck" after this long in one investigation step (UI doc: max_dwell).
@@ -94,8 +94,27 @@ def rubric(s: Session) -> list[int | None]:
     return [pred, test, quality, concl]
 
 
+CHANNEL_NAME = lambda k: content.channel_index()[k]["name"]  # noqa: E731
+
+
+def safety_events(s: Session) -> list[dict]:
+    """Envelope events the station has reached so far (in a recording: up to the second shown)."""
+    upto = s.visible_t()
+    return [e for e in envelope.for_recording(s.recording) if e["t"] <= upto]
+
+
 def alerts(s: Session) -> list[dict]:
     out = []
+    for e in safety_events(s):
+        unit = content.channel_index()[e["channel"]]["unit"]
+        where = "בהקלטה, חריגה מדומה" if s.recording.data_origin == "synthetic" else "בעמדה"
+        verb = "מעל" if e["limit"] is not None and e["value"] >= e["limit"] else "מתחת ל־"
+        out.append({"kind": "safety" if e["level"] == "stop" else "safety_warn",
+                    "title": f"בטיחות {e['rule']}" + ("" if e["level"] == "stop" else " · התקרבות לסף"),
+                    "text": f"{s.label}: {CHANNEL_NAME(e['channel'])} {e['value']:g} {unit} {verb} {e['limit']:g} {unit}"
+                            f" ({where}, שנייה {e['t']}). ערך הסף מוצע וממתין לאישור תלם.",
+                    "suggest": ("בעמדה חיה: עצרו את המנוע בלחצן העצירה ובדקו את העומס לפני שממשיכים. "
+                                "בהקלטה: אפשר לשאול את הקבוצה מה היה קורה בעמדה אמיתית.")})
     if s.state in INVESTIGATION and s.time_in_state() > STUCK_SECONDS and not s.paused:
         secs = int(s.time_in_state())
         extra = "" if len(s.open_channels) > len(s.ex["initial_channels"]) else ", בלי ערוץ פתוח נוסף"
@@ -117,14 +136,14 @@ def alerts(s: Session) -> list[dict]:
     return out
 
 
-URGENCY = {"stuck": 0, "hint3": 1}
+URGENCY = {"safety": -1, "stuck": 0, "hint3": 1}
 
 
 def card(s: Session, index: int) -> dict:
     al = alerts(s)
     urgency = min([URGENCY.get(a["kind"], 2) for a in al], default=3)
     hyp = content.exercises()["hypotheses"].get(s.hypothesis) if s.hypothesis else None
-    flag = "תקוע" if urgency == 0 else ("רמז 3" if urgency == 1 else ("הושלם" if s.state == "CLOSED" else None))
+    flag = {-1: "בטיחות", 0: "תקוע", 1: "רמז 3"}.get(urgency) or ("הושלם" if s.state == "CLOSED" else None)
     scores = rubric(s)
     return {
         "id": s.id, "label": s.label, "index": index, "state": s.state, "stage": STATE_LABEL[s.state],
@@ -138,7 +157,7 @@ def card(s: Session, index: int) -> dict:
 def live(lesson: Lesson, sessions: dict[str, Session]) -> dict:
     ss = [sessions[i] for i in lesson.session_ids if i in sessions]
     cards = [card(s, i + 1) for i, s in enumerate(ss)]
-    # Order: safety (not in MVP), stuck, quota used up, then station number.
+    # Order: safety, stuck, quota used up, then station number (UI doc · live lesson).
     cards.sort(key=lambda c: (c["urgency"], c["index"]))
     counts: dict[str, set] = {}
     for s in ss:

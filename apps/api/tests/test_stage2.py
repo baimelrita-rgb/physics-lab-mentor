@@ -100,3 +100,27 @@ def test_state_survives_restart(recs, tmp_path):
     assert s2.readings == s.readings and s2.open_channels == s.open_channels
     assert s2.add_reading("torque_nm", 5)["id"] == "r2"      # ids continue, no collision
     assert lessons[lesson.id].code == lesson.code and lessons[lesson.id].session_ids == [s.id]
+
+
+def test_envelope_only_in_overload_recording(recs):
+    from lab import envelope
+    from lab.ingest import resolve
+    hits = {name: envelope.for_recording(resolve(recs, name)) for name in
+            ["E01", "E02", "E03", "E04", "N01_25HZ", "N02_50HZ", "N03_LOAD_STEP"]}
+    assert all(not v for k, v in hits.items() if k != "E04")
+    stops = {(e["rule"], e["t"]) for e in hits["E04"] if e["level"] == "stop"}
+    assert stops == {("R-MOT-01", 16), ("R-MOT-02", 16)}
+
+
+def test_safety_alert_first_and_hidden_from_student(recs):
+    from test_stage1 import new
+    s, clock = new(recs, "EX-04")
+    s.advance(); s.submit_prediction({"torque_nm": "up"}); s.advance()
+    clock.t = 10
+    assert not [a for a in teacher.alerts(s) if a["kind"] == "safety"]   # second 10: not yet
+    clock.t = 100
+    al = teacher.alerts(s)
+    assert al[0]["kind"] == "safety" and "R-MOT" in al[0]["title"]
+    lesson = teacher.Lesson("EX-04"); lesson.session_ids = [s.id]
+    assert teacher.live(lesson, {s.id: s})["cards"][0]["flag"] == "בטיחות"
+    assert "R-MOT" not in json.dumps(s.student_view())

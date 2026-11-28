@@ -3,11 +3,11 @@ import { ApiError, api, teacherApi, type Card, type Detail, type ExerciseItem, t
 import { fmt } from "./Chart";
 
 const FLAG_STYLE: Record<string, [string, string]> = {
-  "תקוע": ["#FDECEC", "#A12B2B"], "רמז 3": ["#FFF1E0", "#9A4A06"], "הושלם": ["#E7F4E8", "#2E6B31"],
+  "בטיחות": ["#A12B2B", "#FFFFFF"], "תקוע": ["#FDECEC", "#A12B2B"], "רמז 3": ["#FFF1E0", "#9A4A06"], "הושלם": ["#E7F4E8", "#2E6B31"],
 };
 const ALERT_STYLE: Record<string, [string, string]> = {
   stuck: ["#FDECEC", "#A12B2B"], hint3: ["#FFF1E0", "#9A4A06"], misconception: ["#F3F5F8", "#3A4450"],
-  offtopic: ["#F3F5F8", "#3A4450"],
+  offtopic: ["#F3F5F8", "#3A4450"], safety: ["#FDECEC", "#A12B2B"], safety_warn: ["#FFF1E0", "#9A4A06"],
 };
 const shade = (v: number | null): [string, string] =>
   v === 2 ? ["#DCEFDD", "#2E6B31"] : v === 1 ? ["#FFF1D6", "#8A5A00"] : v === 0 ? ["#F3F5F8", "#5A6573"] : ["#fff", "#9AA5B1"];
@@ -77,6 +77,11 @@ export function TeacherLive({ lessonId }: { lessonId: string }) {
     <div className="t-page">
       <TeacherHeader />
       <div className="t-wrap">
+        {live.alerts.some((a) => a.kind === "safety") && (
+          <div className="t-safety" role="alert">
+            <b>בטיחות:</b> {live.alerts.filter((a) => a.kind === "safety").map((a) => a.text).join(" · ")}
+          </div>
+        )}
         {L.status === "draft" && <div className="note warn">תוכן התרגיל הזה עדיין טיוטה וממתין לאישור.</div>}
 
         <section className="panel t-lesson" aria-label="תרגיל פעיל">
@@ -156,9 +161,9 @@ export function TeacherLive({ lessonId }: { lessonId: string }) {
 function StationCard({ c, onOpen, refresh }: { c: Card; onOpen: () => void; refresh: () => void }) {
   const [err, setErr] = useState<string | null>(null);
   const run = async (p: Promise<unknown>) => { try { await p; setErr(null); refresh(); } catch (e) { setErr(e instanceof ApiError ? e.message : "שגיאה"); } };
-  const border = c.urgency === 0 ? "#D46A6A" : c.urgency === 1 ? "#E39A4E" : "#D8DEE5";
+  const border = c.urgency === -1 ? "#A12B2B" : c.urgency === 0 ? "#D46A6A" : c.urgency === 1 ? "#E39A4E" : "#D8DEE5";
   return (
-    <article className="t-card" style={{ borderColor: border, borderWidth: c.urgency < 2 ? 2 : 1 }}>
+    <article className="t-card" style={{ borderColor: border, borderWidth: c.urgency < 2 ? (c.urgency < 0 ? 3 : 2) : 1 }}>
       <div className="t-card-top"><b>{c.label}</b><span className="muted sm">{c.paused ? "מושהה" : `שלב ${c.step + 1} מתוך 6`}</span></div>
       <div className="t-card-stage"><span className="t-stage">{c.stage}</span><span className="muted sm">{mmss(c.seconds_in_state)} בשלב</span></div>
       <div className="sm">השערה אחרונה: <b>{c.hypothesis_label ?? "—"}</b></div>
