@@ -195,3 +195,6 @@ a.picker-item { color: inherit; text-decoration: none; }
 .mon-group { font-weight: 700; background: var(--chip); }
 .mon-val { font-weight: 600; text-align: end; }
 .t-export { display: inline-flex; align-items: center; color: var(--text); text-decoration: none; }
+.t-user { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: #D5DBE2; }
+.t-logout { background: none; border: 1px solid #4A535E; color: #D5DBE2; border-radius: 8px; padding: 4px 10px; font-size: 13px; }
+.t-demo { background: #4A3A1C; color: #F6D9A8; font-size: 13px; padding: 6px 24px; margin: 0 -24px; text-align: center; }

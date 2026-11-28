@@ -4,7 +4,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.responses import JSONResponse
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -14,6 +15,7 @@ from .ingest import load_all, resolve
 from .live import FrameError, LiveStation
 from .session import GuardError, Session, exercise_number
 from .teacher import Lesson
+from .auth import COOKIE, DEMO_USER, Auth, AuthError
 from .store import Store
 from .tutor import Tutor
 
@@ -168,35 +170,89 @@ def edge_status(station_id: str, body: dict, x_device_token: str | None = Header
 
 
 # ---------- teacher ----------
-# Demo protection only: set TEACHER_TOKEN to require it. Real teacher login (OIDC) comes before a pilot.
+# Teacher login (lab/auth.py). With no accounts defined the teacher screens run in demo mode.
+# TEACHER_TOKEN, when set, still lets scripts call the teacher API with an X-Teacher-Token header.
 TEACHER_TOKEN = os.environ.get("TEACHER_TOKEN", "")
+AUTH = Auth(STORE.root)
 
 
-def _teacher(token: str | None):
-    if TEACHER_TOKEN and token != TEACHER_TOKEN:
-        raise HTTPException(401, "teacher token required")
+def require_teacher(request: Request) -> str:
+    if TEACHER_TOKEN and request.headers.get("x-teacher-token") == TEACHER_TOKEN:
+        return "script"
+    if AUTH.demo:
+        return DEMO_USER
+    user = AUTH.user_from_cookie(request.cookies.get(COOKIE))
+    if not user:
+        raise HTTPException(401, "login required")
+    return user
 
 
-def _lesson(lid: str) -> Lesson:
-    if lid not in LESSONS:
-        raise HTTPException(404, "lesson not found")
-    return LESSONS[lid]
+def _owns(user: str, lesson: Lesson) -> bool:
+    return user in (DEMO_USER, "script") or lesson.owner in ("", user)
+
+
+def _lesson(lid: str, user: str) -> Lesson:
+    lesson = LESSONS.get(lid)
+    if not lesson or not _owns(user, lesson):
+        raise HTTPException(404, "lesson not found")    # another teacher's lesson looks like no lesson
+    return lesson
+
+
+def _teacher_session(sid: str, user: str) -> Session:
+    s = _session(sid)
+    lesson = LESSONS.get(s.lesson_id) if s.lesson_id else None
+    if lesson and not _owns(user, lesson):
+        raise HTTPException(404, "session not found")
+    return s
+
+
+class Login(BaseModel):
+    username: str
+    password: str
+
+
+@app.post("/api/auth/login")
+def login(body: Login):
+    try:
+        cookie = AUTH.login(body.username, body.password)
+    except AuthError as e:
+        raise HTTPException(429 if str(e) == "locked" else 401, str(e))
+    user = body.username.strip().lower()
+    resp = JSONResponse({"user": user, "name": AUTH.name(user)})
+    resp.set_cookie(COOKIE, cookie, max_age=12 * 3600, httponly=True, samesite="lax",
+                    secure=os.environ.get("COOKIE_SECURE") == "1", path="/")
+    return resp
+
+
+@app.post("/api/auth/logout")
+def logout():
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie(COOKIE, path="/")
+    return resp
+
+
+@app.get("/api/auth/me")
+def me(request: Request):
+    if AUTH.demo:
+        return {"user": DEMO_USER, "name": "מצב הדגמה", "demo": True}
+    user = AUTH.user_from_cookie(request.cookies.get(COOKIE))
+    if not user:
+        raise HTTPException(401, "login required")
+    return {"user": user, "name": AUTH.name(user), "demo": False}
 
 
 @app.post("/api/teacher/lessons")
-def create_lesson(body: NewLesson, x_teacher_token: str | None = Header(None)):
-    _teacher(x_teacher_token)
+def create_lesson(body: NewLesson, user: str = Depends(require_teacher)):
     if body.exercise_id not in content.exercises()["exercises"]:
         raise HTTPException(404, "exercise not found")
-    lesson = Lesson(body.exercise_id)
+    lesson = Lesson(body.exercise_id, owner=user if user not in (DEMO_USER, "script") else "")
     LESSONS[lesson.id] = lesson
     STORE.save_lesson(lesson)
     return teacher.live(lesson, SESSIONS)
 
 
 @app.get("/api/teacher/exercises")
-def teacher_exercises(x_teacher_token: str | None = Header(None)):
-    _teacher(x_teacher_token)
+def teacher_exercises(user: str = Depends(require_teacher)):
     exs = content.exercises()["exercises"]
     return [{"id": k, "number": exercise_number(k), "title": v["title"], "subtitle": v["subtitle"],
              "status": v["status"], "available": resolve(RECORDINGS, v["recording"]) is not None}
@@ -204,22 +260,19 @@ def teacher_exercises(x_teacher_token: str | None = Header(None)):
 
 
 @app.get("/api/teacher/lessons")
-def list_lessons(x_teacher_token: str | None = Header(None)):
-    _teacher(x_teacher_token)
+def list_lessons(user: str = Depends(require_teacher)):
     return [{"id": l.id, "code": l.code, "exercise_id": l.exercise_id, "stations": len(l.session_ids),
-             "closed": l.closed} for l in LESSONS.values()]
+             "closed": l.closed} for l in LESSONS.values() if _owns(user, l)]
 
 
 @app.get("/api/teacher/lessons/{lid}")
-def lesson_live(lid: str, x_teacher_token: str | None = Header(None)):
-    _teacher(x_teacher_token)
-    return teacher.live(_lesson(lid), SESSIONS)
+def lesson_live(lid: str, user: str = Depends(require_teacher)):
+    return teacher.live(_lesson(lid, user), SESSIONS)
 
 
 @app.post("/api/teacher/lessons/{lid}/{action}")
-def lesson_action(lid: str, action: str, x_teacher_token: str | None = Header(None)):
-    _teacher(x_teacher_token)
-    lesson = _lesson(lid)
+def lesson_action(lid: str, action: str, user: str = Depends(require_teacher)):
+    lesson = _lesson(lid, user)
     for sid in lesson.session_ids:
         if action == "pause":
             SESSIONS[sid].pause()
@@ -235,31 +288,27 @@ def lesson_action(lid: str, action: str, x_teacher_token: str | None = Header(No
 
 
 @app.get("/api/teacher/stations")
-def stations(x_teacher_token: str | None = Header(None)):
-    _teacher(x_teacher_token)
+def stations(user: str = Depends(require_teacher)):
     return [{"station": k, "connected": v.connected, "samples": len(v.samples)} for k, v in STATIONS.items()]
 
 
 @app.get("/api/teacher/stations/{station_id}/monitor")
-def station_monitor(station_id: str, x_teacher_token: str | None = Header(None)):
-    _teacher(x_teacher_token)
+def station_monitor(station_id: str, user: str = Depends(require_teacher)):
     if station_id not in STATIONS:
         raise HTTPException(404, "station has not connected yet")
     return STATIONS[station_id].monitor()
 
 
 @app.get("/api/teacher/lessons/{lid}/export.csv")
-def export(lid: str, x_teacher_token: str | None = Header(None), token: str | None = None):
-    _teacher(x_teacher_token or token)
-    lesson = _lesson(lid)
+def export(lid: str, user: str = Depends(require_teacher)):
+    lesson = _lesson(lid, user)
     return Response(teacher.export_csv(lesson, SESSIONS), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="lesson-{lesson.code}-grades.csv"'})
 
 
 @app.post("/api/teacher/sessions/{sid}/scores")
-def confirm(sid: str, body: Scores, x_teacher_token: str | None = Header(None)):
-    _teacher(x_teacher_token)
-    s = _session(sid)
+def confirm(sid: str, body: Scores, user: str = Depends(require_teacher)):
+    s = _teacher_session(sid, user)
     try:
         teacher.confirm_scores(s, body.scores, body.note)
     except ValueError as e:
@@ -269,15 +318,13 @@ def confirm(sid: str, body: Scores, x_teacher_token: str | None = Header(None)):
 
 
 @app.get("/api/teacher/sessions/{sid}")
-def session_detail(sid: str, x_teacher_token: str | None = Header(None)):
-    _teacher(x_teacher_token)
-    return teacher.detail(_session(sid))
+def session_detail(sid: str, user: str = Depends(require_teacher)):
+    return teacher.detail(_teacher_session(sid, user))
 
 
 @app.post("/api/teacher/sessions/{sid}/{action}")
-def session_action(sid: str, action: str, body: Text | None = None, x_teacher_token: str | None = Header(None)):
-    _teacher(x_teacher_token)
-    s = _session(sid)
+def session_action(sid: str, action: str, body: Text | None = None, user: str = Depends(require_teacher)):
+    s = _teacher_session(sid, user)
     try:
         if action == "pause":
             s.pause()

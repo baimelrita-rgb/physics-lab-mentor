@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ApiError, api, teacherApi, type Card, type Detail, type Live, type TeacherExercise } from "./api";
+import { ApiError, api, authApi, teacherApi, type Me, type Card, type Detail, type Live, type TeacherExercise } from "./api";
 import { fmt } from "./Chart";
 
 const FLAG_STYLE: Record<string, [string, string]> = {
@@ -45,7 +45,11 @@ export function TeacherHome() {
 
 function TeacherHeader() {
   const [llm, setLlm] = useState<boolean | null>(null);
+  const [me, setMe] = useState<Me | null>(null);
   useEffect(() => { api.status().then((x) => setLlm(x.llm)).catch(() => setLlm(null)); }, []);
+  useEffect(() => {
+    authApi.me().then(setMe).catch(() => { location.href = `/teacher/login?next=${encodeURIComponent(location.pathname)}`; });
+  }, []);
   return (
     <header className="t-header">
       <div className="t-header-in">
@@ -54,13 +58,51 @@ function TeacherHeader() {
           <a href="/teacher" className="cur">שיעור חי</a>
           {["הכנת שיעור", "תלמידים", "כיתה", "תוכן"].map((t) => <span key={t} title="בשלב הבא">{t}</span>)}
         </nav>
+        {me && !me.demo && (
+          <span className="t-user">{me.name}
+            <button className="t-logout" onClick={async () => { await authApi.logout(); location.href = "/teacher/login"; }}>יציאה</button>
+          </span>
+        )}
         {llm !== null && (
           <span className={`t-llm ${llm ? "on" : ""}`} title={llm ? "המנטור מנסח רמזים עם Claude" : "אין מפתח API: המנטור משתמש בטקסטים המאושרים בלבד"}>
             Claude: {llm ? "פעיל" : "כבוי (טקסטים מאושרים)"}
           </span>
         )}
       </div>
+      {me?.demo && (
+        <div className="t-demo">מצב הדגמה: אין חשבונות מורים, ולכן כל מי שמגיע לכתובת רואה את מסך המורה. להגדרת כניסה: <code dir="ltr">python3 tools/add_teacher.py</code></div>
+      )}
     </header>
+  );
+}
+
+export function TeacherLogin() {
+  const [u, setU] = useState("");
+  const [p, setP] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const next = new URLSearchParams(location.search).get("next") || "/teacher";
+  const go = async () => {
+    try { await authApi.login(u, p); location.href = next.startsWith("/") ? next : "/teacher"; }
+    catch (e) {
+      const m = e instanceof ApiError ? e.message : "";
+      setErr(m === "locked" ? "יותר מדי ניסיונות. נסו שוב בעוד כמה דקות." : "שם משתמש או סיסמה שגויים.");
+    }
+  };
+  return (
+    <div className="t-page">
+      <header className="t-header"><div className="t-header-in"><div className="t-brand">מנטור מעבדה · מורה</div></div></header>
+      <div className="join">
+        <form className="panel join-box" onSubmit={(e) => { e.preventDefault(); go(); }}>
+          <div className="lead">כניסת מורים</div>
+          <label className="field-label" htmlFor="u">שם משתמש</label>
+          <input id="u" className="join-input" dir="ltr" autoComplete="username" value={u} onChange={(e) => setU(e.target.value)} />
+          <label className="field-label" htmlFor="p">סיסמה</label>
+          <input id="p" className="join-input" dir="ltr" type="password" autoComplete="current-password" value={p} onChange={(e) => setP(e.target.value)} />
+          <button className="primary big" type="submit" disabled={!u || !p}>כניסה</button>
+          {err && <div className="note warn">{err}</div>}
+        </form>
+      </div>
+    </div>
   );
 }
 

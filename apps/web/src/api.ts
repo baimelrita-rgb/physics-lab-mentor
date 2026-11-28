@@ -67,6 +67,10 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
+  if (res.status === 401 && path.startsWith("/teacher")) {
+    location.href = `/teacher/login?next=${encodeURIComponent(location.pathname)}`;
+    return new Promise<T>(() => {});   // the page is leaving; keep callers waiting instead of erroring
+  }
   if (!res.ok) {
     const j = await res.json().catch(() => ({}));
     throw new ApiError(j?.detail?.detail ?? j?.detail ?? res.statusText);
@@ -94,6 +98,13 @@ export const api = {
   status: () => call<{ llm: boolean; llm_configured: boolean; model_phrase: string }>("GET", "/status"),
   reason: (id: string, text: string, cited: string[]) => call<View>("POST", `/sessions/${id}/reason`, { text, cited }),
   exit: (id: string, text: string) => call<View>("POST", `/sessions/${id}/exit`, { text }),
+};
+
+export type Me = { user: string; name: string; demo: boolean };
+export const authApi = {
+  me: () => call<Me>("GET", "/auth/me"),
+  login: (username: string, password: string) => call<{ user: string; name: string }>("POST", "/auth/login", { username, password }),
+  logout: () => call<{ ok: boolean }>("POST", "/auth/logout"),
 };
 
 export const teacherApi = {

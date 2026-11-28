@@ -39,6 +39,7 @@ class Lesson:
     started: float = 0.0
     session_ids: list[str] = field(default_factory=list)
     closed: bool = False
+    owner: str = ""             # teacher username; "" = demo mode
 
     def __post_init__(self):
         self.started = self.clock()

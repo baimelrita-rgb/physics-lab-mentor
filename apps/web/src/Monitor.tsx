@@ -18,7 +18,10 @@ const RS: Record<string, [string, string]> = { ok: ["תקין", "#E7F4E8"], warn
 export function MonitorList() {
   const [list, setList] = useState<{ station: string; connected: boolean; samples: number }[]>([]);
   useEffect(() => {
-    const f = () => fetch("/api/teacher/stations").then((r) => r.json()).then(setList).catch(() => {});
+    const f = () => fetch("/api/teacher/stations").then((r) => {
+      if (r.status === 401) { location.href = "/teacher/login?next=/monitor"; return null; }
+      return r.json();
+    }).then((x) => { if (Array.isArray(x)) setList(x); }).catch(() => {});
     f(); const h = setInterval(f, 2000); return () => clearInterval(h);
   }, []);
   return (
@@ -43,6 +46,7 @@ export function Monitor({ id }: { id: string }) {
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => {
     const f = () => fetch(`/api/teacher/stations/${id}/monitor`).then(async (r) => {
+      if (r.status === 401) { location.href = `/teacher/login?next=/monitor/${id}`; return; }
       if (!r.ok) { setErr("העמדה עוד לא שלחה נתונים."); return; }
       setM(await r.json()); setErr(null);
     }).catch(() => setErr("אין קשר לשרת."));
