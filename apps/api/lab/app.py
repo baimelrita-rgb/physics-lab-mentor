@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import os
+import threading
+from collections import defaultdict
+from contextlib import contextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
@@ -37,15 +40,30 @@ def _session(sid: str) -> Session:
     return s
 
 
+# One lock per session: two tablets of the same group, or a double tap, are applied one
+# after the other instead of interleaving (QA finding F-01).
+_LOCKS: dict[str, threading.Lock] = defaultdict(threading.Lock)
+_LOCKS_GUARD = threading.Lock()
+
+
+@contextmanager
+def session_lock(sid: str):
+    with _LOCKS_GUARD:
+        lock = _LOCKS[sid]
+    with lock:
+        yield
+
+
 def _run(sid: str, fn):
     s = _session(sid)
-    try:
-        fn(s)
-    except GuardError as e:
-        raise HTTPException(409, {"code": "STATE_GUARD_FAILED", "detail": str(e)})
-    finally:
-        STORE.save_session(s)
-    return s.student_view()
+    with session_lock(sid):
+        try:
+            fn(s)
+        except GuardError as e:
+            raise HTTPException(409, {"code": "STATE_GUARD_FAILED", "detail": str(e)})
+        finally:
+            STORE.save_session(s)
+        return s.student_view()
 
 
 class NewSession(BaseModel):
@@ -383,9 +401,10 @@ def set_members(sid: str, body: Members, user: str = Depends(require_teacher)):
     lesson = LESSONS.get(s.lesson_id) if s.lesson_id else None
     if not lesson:
         raise HTTPException(409, "not part of a lesson")
-    s.members = _valid_members(lesson, body.members)
-    s._log("teacher.members", members=s.members)
-    STORE.save_session(s)
+    with session_lock(sid):
+        s.members = _valid_members(lesson, body.members)
+        s._log("teacher.members", members=s.members)
+        STORE.save_session(s)
     return {"members": s.members}
 
 
@@ -546,11 +565,14 @@ def lesson_action(lid: str, action: str, user: str = Depends(require_teacher)):
             STORE.save_lesson(lesson)
         return _live(lesson, SESSIONS)
     for sid in lesson.session_ids:
-        if action == "pause":
-            SESSIONS[sid].pause()
-        elif action == "resume":
-            SESSIONS[sid].resume()
-        STORE.save_session(SESSIONS[sid])
+        if sid not in SESSIONS:
+            continue
+        with session_lock(sid):
+            if action == "pause":
+                SESSIONS[sid].pause()
+            elif action == "resume":
+                SESSIONS[sid].resume()
+            STORE.save_session(SESSIONS[sid])
     if action == "close":
         lesson.closed = True
         STORE.save_lesson(lesson)
@@ -579,11 +601,12 @@ def export(lid: str, user: str = Depends(require_teacher)):
 @app.post("/api/teacher/sessions/{sid}/scores")
 def confirm(sid: str, body: Scores, user: str = Depends(require_teacher)):
     s = _teacher_session(sid, user)
-    try:
-        teacher.confirm_scores(s, body.scores, body.note)
-    except ValueError as e:
-        raise HTTPException(422, str(e))
-    STORE.save_session(s)
+    with session_lock(sid):
+        try:
+            teacher.confirm_scores(s, body.scores, body.note)
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        STORE.save_session(s)
     return _detail(s)
 
 
@@ -595,20 +618,21 @@ def session_detail(sid: str, user: str = Depends(require_teacher)):
 @app.post("/api/teacher/sessions/{sid}/{action}")
 def session_action(sid: str, action: str, body: Text | None = None, user: str = Depends(require_teacher)):
     s = _teacher_session(sid, user)
-    try:
-        if action == "pause":
-            s.pause()
-        elif action == "resume":
-            s.resume()
-        elif action == "hint":
-            s.teacher_hint()
-        elif action == "message":
-            s.send_message(body.text if body else "")
-        else:
-            raise HTTPException(404, "unknown action")
-    except GuardError as e:
-        raise HTTPException(409, {"code": "STATE_GUARD_FAILED", "detail": str(e)})
-    STORE.save_session(s)
+    if action not in ("pause", "resume", "hint", "message"):
+        raise HTTPException(404, "unknown action")
+    with session_lock(sid):
+        try:
+            if action == "pause":
+                s.pause()
+            elif action == "resume":
+                s.resume()
+            elif action == "hint":
+                s.teacher_hint()
+            else:
+                s.send_message(body.text if body else "")
+        except GuardError as e:
+            raise HTTPException(409, {"code": "STATE_GUARD_FAILED", "detail": str(e)})
+        STORE.save_session(s)
     return _detail(s)
 
 

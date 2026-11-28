@@ -34,7 +34,7 @@ STATE_LABEL = {"THEORY": "רקע", "PREDICT": "תחזית", "OBSERVE": "צפיי
 class Lesson:
     exercise_id: str
     clock: callable = time.time
-    id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
+    id: str = field(default_factory=lambda: uuid.uuid4().hex)
     code: str = field(default_factory=lambda: f"{random.randint(0, 999999):06d}")
     started: float = 0.0
     session_ids: list[str] = field(default_factory=list)

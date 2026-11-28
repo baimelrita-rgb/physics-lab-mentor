@@ -51,7 +51,7 @@ class Session:
     clock: Callable[[], float] = time.time
     log_path: Path | None = None
     replay_speed: float = 1.0
-    id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
+    id: str = field(default_factory=lambda: uuid.uuid4().hex)
     state: str = "THEORY"
     state_rev: int = 0
     paused: bool = False
