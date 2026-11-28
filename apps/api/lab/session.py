@@ -70,6 +70,7 @@ class Session:
     allow_ask: bool = True                                  # free question to the mentor allowed
     members: list[str] = field(default_factory=list)        # roster ids of the students in this group
     token: str = ""                                         # group token (cookie); never sent in student_view
+    tenant_id: str = "default"                              # school / network; from the lesson or the teacher
     pinned: dict = field(default_factory=dict)              # content snapshot: exercise, key, redirects, version
     teacher_message: str | None = None
     hint_sources: list[str] = field(default_factory=list)   # "student" | "teacher", per level

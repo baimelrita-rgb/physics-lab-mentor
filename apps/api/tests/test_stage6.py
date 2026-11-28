@@ -74,7 +74,8 @@ def test_teacher_api_requires_login(accounts):
     assert c.get("/api/auth/me").status_code == 401
     assert c.post("/api/auth/login", json={"username": "rita", "password": "bad"}).status_code == 401
     rita = client_for("rita", "password-rita")
-    assert rita.get("/api/auth/me").json() == {"user": "rita", "name": "ריטה", "demo": False}
+    assert rita.get("/api/auth/me").json() == {"user": "rita", "name": "ריטה", "demo": False, "tenant": "default",
+                                               "role": "teacher", "can_approve": True}
     rita.post("/api/auth/logout")
     assert rita.get("/api/teacher/lessons").status_code == 401
 

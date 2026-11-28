@@ -1,9 +1,13 @@
 """Load content files. Student-facing content and the answer key are kept apart."""
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import copy
 import json
 import os
+import re
+import threading
 from functools import lru_cache
 from pathlib import Path
 
@@ -33,8 +37,40 @@ def channel_index() -> dict[str, dict]:
 
 
 # Edits made in the teacher's "content" tab are a layer over the repository files (lab/editor.py).
-def overrides_file() -> Path:
-    return Path(os.environ.get("STATE_DIR", ROOT / "var" / "state")) / "content_overrides.json"
+# Each tenant (school / network) has its own layer, so one school's edits never reach another
+# (MVP package 4). The request's tenant is set once by the server (app.guard) in a context variable.
+DEFAULT_TENANT = "default"
+_TENANT: contextvars.ContextVar[str] = contextvars.ContextVar("tenant", default=DEFAULT_TENANT)
+_TENANT_ID = re.compile(r"^[a-z0-9][a-z0-9_-]{0,39}$")
+
+
+def valid_tenant(t: str) -> bool:
+    return bool(_TENANT_ID.match(t or ""))
+
+
+def current_tenant() -> str:
+    return _TENANT.get()
+
+
+def set_tenant(t: str):
+    if not valid_tenant(t):
+        raise ValueError("bad tenant id")
+    return _TENANT.set(t)
+
+
+@contextlib.contextmanager
+def use_tenant(t: str):
+    token = set_tenant(t)
+    try:
+        yield
+    finally:
+        _TENANT.reset(token)
+
+
+def overrides_file(tenant: str | None = None) -> Path:
+    tenant = tenant or current_tenant()
+    name = "content_overrides.json" if tenant == DEFAULT_TENANT else f"content_overrides.{tenant}.json"
+    return Path(os.environ.get("STATE_DIR", ROOT / "var" / "state")) / name
 
 
 def overrides() -> dict:
@@ -74,17 +110,30 @@ def base_answer_key() -> dict:
     return _load("answer_key.yaml")
 
 
-@lru_cache
+_CACHE: dict[tuple[str, str], dict] = {}
+_CACHE_LOCK = threading.Lock()
+
+
+def _cached(kind: str, build) -> dict:
+    k = (kind, current_tenant())
+    with _CACHE_LOCK:
+        if k not in _CACHE:
+            _CACHE[k] = build()
+        return _CACHE[k]
+
+
 def exercises() -> dict:
-    data = copy.deepcopy(base_exercises())
-    data["exercises"] = _apply(data["exercises"], overrides().get("exercises", {}))
-    return data
+    """Exercises of the current tenant (repository files + that tenant's edits)."""
+    def build():
+        data = copy.deepcopy(base_exercises())
+        data["exercises"] = _apply(data["exercises"], overrides().get("exercises", {}))
+        return data
+    return _cached("exercises", build)
 
 
-@lru_cache
 def answer_key() -> dict:
     """Server only. Only diagnosis.py and the teacher API may call this."""
-    return _apply(base_answer_key(), overrides().get("answer_key", {}))
+    return _cached("key", lambda: _apply(base_answer_key(), overrides().get("answer_key", {})))
 
 
 def snapshot(exercise_id: str) -> dict:
@@ -97,9 +146,10 @@ def snapshot(exercise_id: str) -> dict:
            "redirects": copy.deepcopy(answer_key().get("misconception_redirects", {}))}
     raw = json.dumps(doc, ensure_ascii=False, sort_keys=True).encode()
     doc["version"] = hashlib.sha256(raw).hexdigest()[:12]
+    doc["tenant"] = current_tenant()
     return doc
 
 
 def reload():
-    exercises.cache_clear()
-    answer_key.cache_clear()
+    with _CACHE_LOCK:
+        _CACHE.clear()

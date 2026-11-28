@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ApiError, teacherApi, type ContentDoc, type ContentField, type ContentItem } from "./api";
+import { ApiError, authApi, teacherApi, type ContentDoc, type ContentField, type ContentItem, type Me } from "./api";
 import { TeacherHeader } from "./Teacher";
 
 type Values = Record<string, unknown>;
@@ -41,6 +41,8 @@ function Editor({ id, onChanged }: { id: string; onChanged: () => void }) {
   const [serverErrors, setServerErrors] = useState<{ path: string; message: string }[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [me, setMe] = useState<Me | null>(null);
+  useEffect(() => { authApi.me().then(setMe).catch(() => setMe(null)); }, []);
 
   const apply = (d: ContentDoc) => {
     setDoc(d);
@@ -88,7 +90,8 @@ function Editor({ id, onChanged }: { id: string; onChanged: () => void }) {
   const student = doc.fields.filter((f) => f.audience === "student");
   const teacherOnly = doc.fields.filter((f) => f.audience === "teacher");
   const edited = doc.fields.some((f) => f.changed);
-  const canApprove = !dirty.length && !serverErrors.length && doc.status !== "approved";
+  const approver = me?.can_approve !== false;          // the tenant's content approver (MVP package 4)
+  const canApprove = approver && !dirty.length && !serverErrors.length && doc.status !== "approved";
 
   const fieldBox = (f: ContentField) => {
     const errs = errorsFor(f.path);
@@ -122,9 +125,10 @@ function Editor({ id, onChanged }: { id: string; onChanged: () => void }) {
           </div>
           <div className="ct-actions">
             <a className="secondary auto link-btn" href="/teacher/prep">תצוגה מקדימה באשף</a>
-            {edited && <button className="secondary auto" onClick={() => action("revert")}>חזרה לנוסח המאגר</button>}
-            <button className="primary" disabled={!canApprove} onClick={() => action("approve")}
+            {edited && approver && <button className="secondary auto" onClick={() => action("revert")}>חזרה לנוסח המאגר</button>}
+            {approver ? <button className="primary" disabled={!canApprove} onClick={() => action("approve")}
               title={dirty.length ? "קודם שומרים" : serverErrors.length ? "יש שדות לתיקון" : ""}>אישור התוכן</button>
+              : <span className="muted sm">את השינויים מאשר/ת אחראי/ת התוכן של בית הספר.</span>}
           </div>
         </div>
         {serverErrors.length > 0 && (

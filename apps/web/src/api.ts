@@ -163,7 +163,7 @@ export const api = {
   exit: (id: string, text: string) => call<View>("POST", `/sessions/${id}/exit`, { text }),
 };
 
-export type Me = { user: string; name: string; demo: boolean };
+export type Me = { user: string; name: string; demo: boolean; tenant?: string; role?: string; can_approve?: boolean };
 export const authApi = {
   me: () => call<Me>("GET", "/auth/me"),
   login: (username: string, password: string) => call<{ user: string; name: string }>("POST", "/auth/login", { username, password }),

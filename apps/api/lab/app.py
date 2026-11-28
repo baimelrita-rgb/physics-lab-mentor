@@ -21,6 +21,7 @@ from .session import GuardError, Session, exercise_number
 from .teacher import Lesson
 from .auth import COOKIE, DEMO_USER, Auth, AuthError
 from .store import Store
+from .org import Org
 from .security import (SESSION_COOKIE, RateLimiter, StationTokens, client_ip, cookie_secure, demo_mode,
                        new_token)
 from .tutor import Tutor
@@ -33,6 +34,7 @@ SPEED = float(os.environ.get("REPLAY_SPEED", "1"))
 STORE = Store(Path(os.environ.get("STATE_DIR", content.ROOT / "var" / "state")))
 # Sessions and lessons survive a server restart.
 SESSIONS, LESSONS = STORE.load(RECORDINGS, log_path=LOG, replay_speed=SPEED, tutor=TUTOR)
+ORG = Org(STORE.db, STORE._lock)       # tenants, labs, stations (MVP package 4)
 
 
 def _session(sid: str) -> Session:
@@ -79,6 +81,25 @@ async def guard(request: Request, call_next):
             from urllib.parse import urlparse
             if urlparse(origin).netloc != request.headers.get("host"):
                 return JSONResponse({"detail": "cross-site request refused"}, status_code=403)
+    # Content (and anything else tenant-scoped) is read for the caller's tenant only.
+    token = content.set_tenant(_request_tenant(request))
+    try:
+        return await _guarded(request, call_next, path)
+    finally:
+        content._TENANT.reset(token)
+
+
+def _request_tenant(request: Request) -> str:
+    path = request.url.path
+    if path.startswith("/api/sessions/"):
+        s = SESSIONS.get(path.split("/")[3])
+        if s is not None:
+            return s.tenant_id
+    user = AUTH.user_from_cookie(request.cookies.get(COOKIE)) if path.startswith(("/api/teacher/", "/api/auth/", "/api/sessions")) else None
+    return AUTH.tenant(user) if user else content.DEFAULT_TENANT
+
+
+async def _guarded(request: Request, call_next, path: str):
     # A group's session answers only to the tablet that holds its token (QA finding F-05).
     if path.startswith("/api/sessions/"):
         sid = path.split("/")[3]
@@ -188,12 +209,14 @@ def list_exercises():
 
 
 def _new_session(exercise_id: str, label: str, lesson: Lesson | None = None, members: list[str] | None = None) -> Session:
-    ex = content.exercises()["exercises"].get(exercise_id)
-    rec = resolve(RECORDINGS, ex["recording"]) if ex else None
-    if not rec:
-        raise HTTPException(404, "exercise or recording not available")
-    s = Session(exercise_id, rec, log_path=LOG, replay_speed=SPEED, token=new_token(),
-                label=label.strip()[:30] or "עמדה", lesson_id=lesson.id if lesson else None, tutor=TUTOR)
+    tenant = lesson.tenant_id if lesson else content.current_tenant()
+    with content.use_tenant(tenant):               # the session pins its tenant's content version
+        ex = content.exercises()["exercises"].get(exercise_id)
+        rec = resolve(RECORDINGS, ex["recording"]) if ex else None
+        if not rec:
+            raise HTTPException(404, "exercise or recording not available")
+        s = Session(exercise_id, rec, log_path=LOG, replay_speed=SPEED, token=new_token(), tenant_id=tenant,
+                    label=label.strip()[:30] or "עמדה", lesson_id=lesson.id if lesson else None, tutor=TUTOR)
     if lesson:
         s.hint_quota, s.allow_ask = lesson.hint_quota, lesson.allow_ask
         s.members = list(members or [])
@@ -371,8 +394,20 @@ def require_teacher(request: Request) -> str:
     return user
 
 
+def _tenant(user: str) -> str:
+    return content.DEFAULT_TENANT if user in (DEMO_USER, "script") else AUTH.tenant(user)
+
+
 def _owns(user: str, lesson: Lesson) -> bool:
+    """Same tenant always; within it, the teacher's own lessons (demo / script see the default tenant)."""
+    if lesson.tenant_id != _tenant(user):
+        return False
     return user in (DEMO_USER, "script") or lesson.owner in ("", user)
+
+
+def _sees_station(user: str, station_id: str) -> bool:
+    labs = [] if user in (DEMO_USER, "script") else AUTH.labs(user)
+    return ORG.visible(station_id, _tenant(user), labs)
 
 
 def _lesson(lid: str, user: str) -> Lesson:
@@ -385,7 +420,7 @@ def _lesson(lid: str, user: str) -> Lesson:
 def _teacher_session(sid: str, user: str) -> Session:
     s = _session(sid)
     lesson = LESSONS.get(s.lesson_id) if s.lesson_id else None
-    if lesson and not _owns(user, lesson):
+    if (lesson and not _owns(user, lesson)) or s.tenant_id != _tenant(user):
         raise HTTPException(404, "session not found")
     return s
 
@@ -422,11 +457,13 @@ def logout():
 @app.get("/api/auth/me")
 def me(request: Request):
     if AUTH.demo:
-        return {"user": DEMO_USER, "name": "מצב הדגמה", "demo": True}
+        return {"user": DEMO_USER, "name": "מצב הדגמה", "demo": True, "tenant": content.DEFAULT_TENANT,
+                "role": "content_admin", "can_approve": True}
     user = AUTH.user_from_cookie(request.cookies.get(COOKIE))
     if not user:
         raise HTTPException(401, "login required")
-    return {"user": user, "name": AUTH.name(user), "demo": False}
+    return {"user": user, "name": AUTH.name(user), "demo": False, "tenant": AUTH.tenant(user),
+            "role": AUTH.role(user), "can_approve": AUTH.can_approve(user)}
 
 
 @app.post("/api/teacher/lessons")
@@ -440,7 +477,7 @@ def create_lesson(body: NewLesson, user: str = Depends(require_teacher)):
     lesson = Lesson(body.exercise_id, owner=user if user not in (DEMO_USER, "script") else "",
                     class_name=body.class_name.strip()[:40], date=body.date[:10], stations=body.stations,
                     hint_quota=body.hint_quota, allow_ask=body.allow_ask, deduction=body.deduction,
-                    planned=body.planned)
+                    planned=body.planned, tenant_id=_tenant(user))
     lesson.code = _new_code()
     LESSONS[lesson.id] = lesson
     STORE.save_lesson(lesson)
@@ -530,6 +567,10 @@ def _who(user: str) -> str:
     return {"demo": "מצב הדגמה", "script": "סקריפט"}.get(user) or AUTH.name(user)
 
 
+def _can_approve(user: str) -> bool:
+    return user in (DEMO_USER, "script") or AUTH.can_approve(user)
+
+
 @app.get("/api/teacher/content")
 def content_list(user: str = Depends(require_teacher)):
     exs = content.exercises()["exercises"]
@@ -565,6 +606,8 @@ def content_save(eid: str, body: ContentEdit, user: str = Depends(require_teache
 @app.post("/api/teacher/content/{eid}/{action}")
 def content_action(eid: str, action: str, user: str = Depends(require_teacher)):
     try:
+        if action in ("approve", "revert") and not _can_approve(user):
+            raise HTTPException(403, "only the tenant's content approver can do this")
         if action == "approve":
             return editor.approve(eid, _who(user))
         if action == "revert":
@@ -596,6 +639,8 @@ def prep_stations(user: str = Depends(require_teacher)):
             "status": "הקלטות בלבד", "components": ["ווסת תדר", "מנוע השראה 370 W", "בלם מגנטי", "מד מומנט ומהירות", "מד רשת"],
             "usable": True}]
     for k, v in STATIONS.items():
+        if not _sees_station(user, k):
+            continue
         out.append({"id": k, "name": f"עמדה חיה {k}", "mode": "live", "status": "מחוברת" if v.connected else "מנותקת",
                     "components": [], "usable": False, "reason": "תרגול על נתונים חיים ייפתח אחרי אישור מפת הרגיסטרים של תלם"})
     return out
@@ -676,13 +721,14 @@ def lesson_action(lid: str, action: str, user: str = Depends(require_teacher)):
 
 @app.get("/api/teacher/stations")
 def stations(user: str = Depends(require_teacher)):
-    return [{"station": k, "connected": v.connected, "samples": len(v.samples)} for k, v in STATIONS.items()]
+    return [{"station": k, "connected": v.connected, "samples": len(v.samples), "lab": ORG.station(k)["lab"]}
+            for k, v in STATIONS.items() if _sees_station(user, k)]
 
 
 @app.get("/api/teacher/stations/{station_id}/monitor")
 def station_monitor(station_id: str, user: str = Depends(require_teacher)):
-    if station_id not in STATIONS:
-        raise HTTPException(404, "station has not connected yet")
+    if station_id not in STATIONS or not _sees_station(user, station_id):
+        raise HTTPException(404, "station has not connected yet")      # another school's station looks like none
     return STATIONS[station_id].monitor()
 
 

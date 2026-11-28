@@ -49,6 +49,7 @@ class Lesson:
     deduction: str = "none"     # "none" | "per_hint": one point off the total per hint the student asked for
     planned: bool = False       # saved for later; stations cannot join until the teacher opens it
     closed_at: float = 0.0      # when the lesson ended (by the teacher or automatically)
+    tenant_id: str = "default"  # school / network (MVP package 4); the teacher's tenant
 
     def __post_init__(self):
         self.started = self.clock()

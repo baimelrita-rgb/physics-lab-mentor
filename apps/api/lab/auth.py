@@ -4,7 +4,11 @@
 - Login sets a signed, HttpOnly cookie valid for 12 hours (HMAC-SHA256 with a server secret).
 - 5 failed logins for a username lock it for 5 minutes.
 - No accounts defined = demo mode: teacher screens stay open, and the UI says so.
-Accounts are added with:  python3 tools/add_teacher.py <username> "<display name>"
+Accounts are added with:  python3 tools/add_teacher.py <username> "<display name>" [--tenant T] [--role R] [--labs A,B]
+
+Each account belongs to one tenant (school / network). Roles: "teacher", or "content_admin" who
+approves content edits for the tenant (when a tenant has no content_admin, any of its teachers may).
+Username are unique across tenants.
 """
 from __future__ import annotations
 
@@ -22,6 +26,7 @@ COOKIE = "lm_teacher"
 TTL = 12 * 3600
 MAX_FAILS, LOCK_SECONDS = 5, 300
 DEMO_USER = "demo"
+ROLES = ("teacher", "content_admin")
 
 
 class AuthError(Exception):
@@ -52,16 +57,26 @@ class Auth:
     def has_accounts(self) -> bool:
         return bool(self.teachers())
 
-    def add_teacher(self, username: str, name: str, password: str):
+    def add_teacher(self, username: str, name: str, password: str, tenant: str = "default",
+                    role: str = "teacher", labs: list[str] | None = None):
         username = username.strip().lower()
         if not username.replace("_", "").replace(".", "").isalnum() or len(username) > 40:
             raise AuthError("username: letters, digits, '.' or '_' only")
         if len(password) < 8:
             raise AuthError("password must be at least 8 characters")
+        from .content import valid_tenant
+        if not valid_tenant(tenant):
+            raise AuthError("tenant id: lowercase letters, digits, '-' or '_'")
+        if role not in ROLES:
+            raise AuthError(f"role must be one of {', '.join(ROLES)}")
+        old = self.teachers().get(username.strip().lower())
+        if old and old.get("tenant", "default") != tenant:
+            raise AuthError("this username already belongs to another tenant")
         salt = secrets.token_hex(16)
         users = self.teachers()
         users[username] = {"name": name.strip() or username, "salt": salt, "iterations": ITERATIONS,
-                           "hash": self._hash(password, salt, ITERATIONS)}
+                           "hash": self._hash(password, salt, ITERATIONS),
+                           "tenant": tenant, "role": role, "labs": list(labs or [])}
         self.dir.mkdir(parents=True, exist_ok=True)
         tmp = self._file.with_suffix(".tmp")
         tmp.write_text(json.dumps(users, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -107,6 +122,25 @@ class Auth:
 
     def name(self, username: str) -> str:
         return self.teachers().get(username, {}).get("name", username)
+
+    def tenant(self, username: str) -> str:
+        return self.teachers().get(username, {}).get("tenant", "default")
+
+    def role(self, username: str) -> str:
+        return self.teachers().get(username, {}).get("role", "teacher")
+
+    def labs(self, username: str) -> list[str]:
+        return list(self.teachers().get(username, {}).get("labs", []))
+
+    def can_approve(self, username: str) -> bool:
+        """content_admin approves; a tenant without any content_admin lets its teachers approve."""
+        users = self.teachers()
+        if username not in users:
+            return False
+        if self.role(username) == "content_admin":
+            return True
+        t = self.tenant(username)
+        return not any(u.get("role") == "content_admin" and u.get("tenant", "default") == t for u in users.values())
 
     # ---------- signing ----------
     def _secret(self) -> bytes:
