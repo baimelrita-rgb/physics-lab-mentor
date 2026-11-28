@@ -10,7 +10,8 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import classview, content, envelope, llm, setup, teacher
+from . import classview, content, envelope, llm, setup, students, teacher
+from .roster import Roster, RosterError
 from .ingest import load_all, resolve
 from .live import FrameError, LiveStation
 from .session import GuardError, Session, exercise_number
@@ -55,6 +56,22 @@ class NewSession(BaseModel):
 class Join(BaseModel):
     code: str
     label: str = "עמדה"
+    members: list[str] = []
+
+
+class RosterAdd(BaseModel):
+    class_name: str
+    names: list[str]
+
+
+class RosterEdit(BaseModel):
+    class_name: str
+    name: str | None = None
+    active: bool | None = None
+
+
+class Members(BaseModel):
+    members: list[str]
 
 
 class NewLesson(BaseModel):
@@ -113,7 +130,7 @@ def list_exercises():
              "available": resolve(RECORDINGS, v["recording"]) is not None} for k, v in exs.items()]
 
 
-def _new_session(exercise_id: str, label: str, lesson: Lesson | None = None) -> Session:
+def _new_session(exercise_id: str, label: str, lesson: Lesson | None = None, members: list[str] | None = None) -> Session:
     ex = content.exercises()["exercises"].get(exercise_id)
     rec = resolve(RECORDINGS, ex["recording"]) if ex else None
     if not rec:
@@ -122,6 +139,7 @@ def _new_session(exercise_id: str, label: str, lesson: Lesson | None = None) -> 
                 label=label.strip()[:30] or "עמדה", lesson_id=lesson.id if lesson else None, tutor=TUTOR)
     if lesson:
         s.hint_quota, s.allow_ask = lesson.hint_quota, lesson.allow_ask
+        s.members = list(members or [])
     SESSIONS[s.id] = s
     STORE.save_session(s)
     if lesson:
@@ -137,11 +155,59 @@ def create_session(body: NewSession):
 
 @app.post("/api/join")
 def join(body: Join):
+    lesson = _open_lesson(body.code)
+    return _new_session(lesson.exercise_id, body.label, lesson, _valid_members(lesson, body.members)).student_view()
+
+
+ROSTER = Roster(STORE.root)
+
+
+def _names(lesson: Lesson) -> dict[str, str]:
+    return {x["id"]: x["name"] for x in ROSTER.students(lesson.owner, lesson.class_name)}
+
+
+def _live(lesson: Lesson, sessions: dict) -> dict:
+    """Live lesson view plus the names of each group's students (from the class roster)."""
+    out = teacher.live(lesson, sessions)
+    names = _names(lesson)
+    for c in out["cards"]:
+        c["member_names"] = [names.get(m, "?") for m in c.get("members", [])]
+    out["lesson"]["class_name"] = lesson.class_name
+    return out
+
+
+def _detail(s: Session) -> dict:
+    out = teacher.detail(s)
+    lesson = LESSONS.get(s.lesson_id) if s.lesson_id else None
+    out["members"] = s.members
+    out["roster"] = [{"id": x["id"], "name": x["name"]}
+                     for x in ROSTER.students(lesson.owner, lesson.class_name, active_only=True)] if lesson else []
+    return out
+
+
+def _open_lesson(code: str) -> Lesson:
     lesson = next((l for l in LESSONS.values()
-                   if l.code == body.code.strip() and not l.closed and not l.planned), None)
+                   if l.code == code.strip() and not l.closed and not l.planned), None)
     if not lesson:
         raise HTTPException(404, "lesson code not found")
-    return _new_session(lesson.exercise_id, body.label, lesson).student_view()
+    return lesson
+
+
+def _valid_members(lesson: Lesson, ids: list[str]) -> list[str]:
+    allowed = {s["id"] for s in ROSTER.students(lesson.owner, lesson.class_name, active_only=True)}
+    if any(i not in allowed for i in ids) or len(set(ids)) > 8:
+        raise HTTPException(422, "unknown student")
+    return list(dict.fromkeys(ids))
+
+
+@app.get("/api/join/{code}")
+def join_info(code: str):
+    """Names to tick on the join screen (anyone with the lesson code sees the class list)."""
+    lesson = _open_lesson(code)
+    taken = {m for sid in lesson.session_ids if sid in SESSIONS for m in SESSIONS[sid].members}
+    return {"class_name": lesson.class_name,
+            "roster": [{"id": s["id"], "name": s["name"], "taken": s["id"] in taken}
+                       for s in ROSTER.students(lesson.owner, lesson.class_name, active_only=True)]}
 
 
 # ---------- edge (live station) ----------
@@ -266,7 +332,7 @@ def create_lesson(body: NewLesson, user: str = Depends(require_teacher)):
                     planned=body.planned)
     LESSONS[lesson.id] = lesson
     STORE.save_lesson(lesson)
-    return teacher.live(lesson, SESSIONS)
+    return _live(lesson, SESSIONS)
 
 
 @app.get("/api/teacher/exercises")
@@ -286,9 +352,68 @@ def list_lessons(user: str = Depends(require_teacher)):
             for l in LESSONS.values() if _owns(user, l)]
 
 
+def _roster_owner(user: str) -> str:
+    return "" if user in (DEMO_USER, "script") else user
+
+
+@app.get("/api/teacher/roster")
+def roster_get(class_name: str, user: str = Depends(require_teacher)):
+    return ROSTER.students(_roster_owner(user), class_name)
+
+
+@app.post("/api/teacher/roster")
+def roster_add(body: RosterAdd, user: str = Depends(require_teacher)):
+    try:
+        return ROSTER.add(_roster_owner(user), body.class_name.strip()[:40], body.names[:200])
+    except RosterError as e:
+        raise HTTPException(422, str(e))
+
+
+@app.patch("/api/teacher/roster/{student_id}")
+def roster_edit(student_id: str, body: RosterEdit, user: str = Depends(require_teacher)):
+    try:
+        return ROSTER.update(_roster_owner(user), body.class_name, student_id, body.name, body.active)
+    except RosterError as e:
+        raise HTTPException(404, str(e))
+
+
+@app.post("/api/teacher/sessions/{sid}/members")
+def set_members(sid: str, body: Members, user: str = Depends(require_teacher)):
+    s = _teacher_session(sid, user)
+    lesson = LESSONS.get(s.lesson_id) if s.lesson_id else None
+    if not lesson:
+        raise HTTPException(409, "not part of a lesson")
+    s.members = _valid_members(lesson, body.members)
+    s._log("teacher.members", members=s.members)
+    STORE.save_session(s)
+    return {"members": s.members}
+
+
+def _class_lessons(user: str) -> list[Lesson]:
+    return [l for l in LESSONS.values() if _owns(user, l)]
+
+
+@app.get("/api/teacher/students")
+def students_overview(class_name: str, user: str = Depends(require_teacher)):
+    return students.overview(_class_lessons(user), SESSIONS, class_name,
+                             ROSTER.students(_roster_owner(user), class_name))
+
+
+@app.get("/api/teacher/students/{student_id}")
+def student_detail(student_id: str, class_name: str, user: str = Depends(require_teacher)):
+    d = students.detail(_class_lessons(user), SESSIONS, class_name,
+                        ROSTER.students(_roster_owner(user), class_name), student_id)
+    if not d:
+        raise HTTPException(404, "student not found")
+    return d
+
+
 @app.get("/api/teacher/classes")
 def classes(user: str = Depends(require_teacher)):
-    return classview.class_names([l for l in LESSONS.values() if _owns(user, l) and not l.planned])
+    out = classview.class_names([l for l in LESSONS.values() if _owns(user, l) and not l.planned])
+    known = {c["name"] for c in out}
+    # Classes that so far have only a roster (no lesson yet).
+    return out + [{"name": c, "lessons": 0} for c in ROSTER.classes(_roster_owner(user)) if c not in known]
 
 
 @app.get("/api/teacher/class")
@@ -355,7 +480,7 @@ def prep_preview(exercise_id: str, user: str = Depends(require_teacher)):
 
 @app.get("/api/teacher/lessons/{lid}")
 def lesson_live(lid: str, user: str = Depends(require_teacher)):
-    return teacher.live(_lesson(lid, user), SESSIONS)
+    return _live(_lesson(lid, user), SESSIONS)
 
 
 @app.post("/api/teacher/lessons/{lid}/{action}")
@@ -367,7 +492,7 @@ def lesson_action(lid: str, action: str, user: str = Depends(require_teacher)):
         if lesson.planned:
             lesson.planned, lesson.started = False, lesson.clock()
             STORE.save_lesson(lesson)
-        return teacher.live(lesson, SESSIONS)
+        return _live(lesson, SESSIONS)
     for sid in lesson.session_ids:
         if action == "pause":
             SESSIONS[sid].pause()
@@ -377,7 +502,7 @@ def lesson_action(lid: str, action: str, user: str = Depends(require_teacher)):
     if action == "close":
         lesson.closed = True
         STORE.save_lesson(lesson)
-    return teacher.live(lesson, SESSIONS)
+    return _live(lesson, SESSIONS)
 
 
 @app.get("/api/teacher/stations")
@@ -407,12 +532,12 @@ def confirm(sid: str, body: Scores, user: str = Depends(require_teacher)):
     except ValueError as e:
         raise HTTPException(422, str(e))
     STORE.save_session(s)
-    return teacher.detail(s)
+    return _detail(s)
 
 
 @app.get("/api/teacher/sessions/{sid}")
 def session_detail(sid: str, user: str = Depends(require_teacher)):
-    return teacher.detail(_teacher_session(sid, user))
+    return _detail(_teacher_session(sid, user))
 
 
 @app.post("/api/teacher/sessions/{sid}/{action}")
@@ -432,7 +557,7 @@ def session_action(sid: str, action: str, body: Text | None = None, user: str = 
     except GuardError as e:
         raise HTTPException(409, {"code": "STATE_GUARD_FAILED", "detail": str(e)})
     STORE.save_session(s)
-    return teacher.detail(s)
+    return _detail(s)
 
 
 @app.get("/api/sessions/{sid}")

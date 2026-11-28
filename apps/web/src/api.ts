@@ -56,6 +56,20 @@ export type Preview = {
     envelope: { id: string; title: string; status: string; level: "ok" | "warn" | "stop"; value: number | null; limit: number | null }[];
   };
 };
+export type RosterStudent = { id: string; name: string; active: boolean };
+export type Mis = { id: string; label: string };
+export type StudentsOverview = {
+  class_name: string; aspects: string[]; sessions: number; unassigned_sessions: number;
+  students: { id: string; name: string; active: boolean; lessons: number; aspects: (number | null)[]; finished: number;
+    hints: number | null; misconceptions: Mis[]; trend: (number | null)[]; last: string | null }[];
+};
+export type StudentDetail = {
+  student: RosterStudent; aspects: string[]; averages: (number | null)[];
+  sessions: { lesson: string; session: string; date: string; number: number; title: string; group: string; partners: string[];
+    stage: string; finished: boolean; scores: (number | null)[]; confirmed: boolean; total: number; hints: number;
+    misconceptions: Mis[]; teacher_note: string }[];
+  mastery: { id: string; title: string; value: number | null; sessions: number }[];
+};
 export type ClassData = {
   class_name: string; days: number | null; threshold_s: number; aspects: string[];
   lessons: { id: string; date: string; exercise: string; number: number; groups: number }[];
@@ -70,7 +84,7 @@ export type SetupComponent = { id: string; name: string; model: string; needed: 
 
 export type Alert = { kind: string; title: string; text: string; suggest: string; station?: string; session?: string };
 export type Card = {
-  id: string; label: string; index: number; state: string; stage: string; step: number;
+  id: string; label: string; members: string[]; member_names?: string[]; index: number; state: string; stage: string; step: number;
   seconds_in_state: number; paused: boolean; hypothesis: string | null; hypothesis_label: string | null;
   hints_used: number; quota: number; flag: string | null; urgency: number; alerts: Alert[];
   rubric: (number | null)[]; total: number; confirmed: boolean;
@@ -82,6 +96,7 @@ export type Live = {
 };
 export type Detail = {
   id: string; label: string; state: string; stage: string;
+  members: string[]; roster: { id: string; name: string }[];
   expected: { cause: string; cause_label: string; conclusion: string };
   prediction: { directions: Record<string, string>; text: string } | null;
   theory_answer: { choice: number; correct: boolean } | null;
@@ -116,7 +131,8 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 export const api = {
   exercises: () => call<ExerciseItem[]>("GET", "/exercises"),
   create: (exercise_id: string, label = "עמדה 1") => call<View>("POST", "/sessions", { exercise_id, label }),
-  join: (code: string, label: string) => call<View>("POST", "/join", { code, label }),
+  join: (code: string, label: string, members: string[] = []) => call<View>("POST", "/join", { code, label, members }),
+  joinInfo: (code: string) => call<{ class_name: string; roster: { id: string; name: string; taken: boolean }[] }>("GET", `/join/${code}`),
   get: (id: string) => call<View>("GET", `/sessions/${id}`),
   advance: (id: string) => call<View>("POST", `/sessions/${id}/advance`),
   theory: (id: string, choice: number) => call<View>("POST", `/sessions/${id}/theory`, { choice }),
@@ -147,6 +163,14 @@ export const teacherApi = {
   createLesson: (body: Partial<LessonSettings> & { exercise_id: string }) => call<Live>("POST", "/teacher/lessons", body),
   lessons: () => call<LessonItem[]>("GET", "/teacher/lessons"),
   openLesson: (lid: string) => call<Live>("POST", `/teacher/lessons/${lid}/open`),
+  roster: (class_name: string) => call<RosterStudent[]>("GET", `/teacher/roster?class_name=${encodeURIComponent(class_name)}`),
+  rosterAdd: (class_name: string, names: string[]) => call<RosterStudent[]>("POST", "/teacher/roster", { class_name, names }),
+  rosterEdit: (id: string, class_name: string, patch: { name?: string; active?: boolean }) =>
+    call<RosterStudent>("PATCH", `/teacher/roster/${id}`, { class_name, ...patch }),
+  setMembers: (sid: string, members: string[]) => call<{ members: string[] }>("POST", `/teacher/sessions/${sid}/members`, { members }),
+  students: (class_name: string) => call<StudentsOverview>("GET", `/teacher/students?class_name=${encodeURIComponent(class_name)}`),
+  student: (id: string, class_name: string) =>
+    call<StudentDetail>("GET", `/teacher/students/${id}?class_name=${encodeURIComponent(class_name)}`),
   classes: () => call<{ name: string; lessons: number }[]>("GET", "/teacher/classes"),
   classView: (name: string, days: number | null) =>
     call<ClassData>("GET", `/teacher/class?name=${encodeURIComponent(name)}${days ? `&days=${days}` : ""}`),

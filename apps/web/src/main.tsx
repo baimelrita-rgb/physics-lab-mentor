@@ -6,6 +6,7 @@ import { Monitor, MonitorList } from "./Monitor";
 import { TeacherHome, TeacherLive, TeacherLogin } from "./Teacher";
 import { LessonPrep } from "./Prep";
 import { ClassView } from "./ClassView";
+import { Students } from "./Students";
 import "./styles.css";
 
 // Routes:
@@ -20,6 +21,7 @@ function App() {
   if (path.startsWith("/teacher/login")) return <TeacherLogin />;
   if (path.startsWith("/teacher/prep")) return <LessonPrep />;
   if (path.startsWith("/teacher/class")) return <ClassView />;
+  if (path.startsWith("/teacher/students")) return <Students />;
   if ((m = path.match(/^\/teacher\/(\w+)/))) return <TeacherLive lessonId={m[1]} />;
   if (path.startsWith("/teacher")) return <TeacherHome />;
   if ((m = path.match(/^\/monitor\/([\w-]+)/))) return <Monitor id={m[1]} />;
@@ -49,8 +51,15 @@ function Join() {
   const [code, setCode] = useState(params.get("code") ?? "");
   const [label, setLabel] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [roster, setRoster] = useState<{ id: string; name: string; taken: boolean }[]>([]);
+  const [members, setMembers] = useState<string[]>([]);
+  useEffect(() => {
+    setRoster([]); setMembers([]);
+    if (code.length === 6) api.joinInfo(code).then((x) => setRoster(x.roster)).catch(() => setRoster([]));
+  }, [code]);
+  const toggle = (id: string) => setMembers((m) => (m.includes(id) ? m.filter((x) => x !== id) : [...m, id]));
   const go = async () => {
-    try { const s = await api.join(code, label); location.href = `/station/${s.id}`; }
+    try { const s = await api.join(code, label, members); location.href = `/station/${s.id}`; }
     catch (e) { setError(e instanceof ApiError && e.message === "lesson code not found" ? "הקוד לא נמצא. בדקו מול המורה." : "שגיאה בהצטרפות"); }
   };
   return (
@@ -64,7 +73,19 @@ function Join() {
                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} />
           <label className="field-label" htmlFor="label">שם הקבוצה</label>
           <input id="label" className="join-input" maxLength={30} value={label} placeholder="למשל: קבוצה 3" onChange={(e) => setLabel(e.target.value)} />
-          <button className="primary big" disabled={code.length !== 6 || !label.trim()} onClick={go}>הצטרפו</button>
+          {roster.length > 0 && (
+            <fieldset className="join-members">
+              <legend className="field-label">מי בקבוצה? סמנו את השמות שלכם</legend>
+              <div className="chips">
+                {roster.map((r) => (
+                  <button key={r.id} type="button" className={`chip-btn sm ${members.includes(r.id) ? "sel" : ""} ${r.taken && !members.includes(r.id) ? "taken" : ""}`}
+                    aria-pressed={members.includes(r.id)} onClick={() => toggle(r.id)}>{r.name}</button>
+                ))}
+              </div>
+              <div className="muted sm">שם מעומעם כבר סומן בקבוצה אחרת. אפשר לסמן אותו אם זו טעות.</div>
+            </fieldset>
+          )}
+          <button className="primary big" disabled={code.length !== 6 || !label.trim() || (roster.length > 0 && !members.length)} onClick={go}>הצטרפו</button>
           {error && <div className="note warn">{error}</div>}
         </div>
       </div>

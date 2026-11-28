@@ -19,12 +19,20 @@ sys.path.insert(0, str(ROOT / "apps" / "api"))
 
 from lab import content  # noqa: E402
 from lab.ingest import load_all, resolve  # noqa: E402
+from lab.roster import Roster  # noqa: E402
 from lab.session import Session  # noqa: E402
 from lab.store import Store  # noqa: E402
 from lab.teacher import Lesson  # noqa: E402
 
 CLASS = "י׳2 (הדגמה)"
 GROUPS = ["קבוצה א", "קבוצה ב", "קבוצה ג", "קבוצה ד", "קבוצה ה"]
+# Invented names (first name + initial). Groups are reshuffled between lessons, as in class.
+NAMES = ["נועה כ.", "עומר ל.", "דנה ש.", "יואב מ.", "מאיה ר.", "איתי ב.", "שירה ג.", "אדם ח.",
+         "תמר פ.", "רון ז.", "ליה ע.", "גיא נ.", "אור ס.", "עדי ק.", "נדב ת."]
+SHUFFLES = [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+            [0, 4, 8, 1, 5, 9, 2, 6, 10, 3, 7, 11, 12, 13, 14],
+            [0, 5, 10, 1, 6, 11, 2, 7, 12, 3, 8, 13, 4, 9, 14],
+            [0, 6, 12, 1, 7, 13, 2, 8, 14, 3, 9, 4, 10, 5, 11]]
 
 
 class Clock:
@@ -104,27 +112,32 @@ def main():
             for sid in d.get("session_ids", []):
                 (state / "sessions" / f"{sid}.json").unlink(missing_ok=True)
             p.unlink()
+    roster = Roster(state)
+    roster.remove_class(a.owner, CLASS)
     if a.remove:
         print("הכיתה לדוגמה נמחקה. הפעילו מחדש את השרת.")
         return
     recs = load_all(content.DATA)
     rec = resolve(recs, content.exercises()["exercises"]["EX-01"]["recording"])
     now = time.time()
-    for days_ago, profiles in PLANS:
+    ids = [s["id"] for s in roster.add(a.owner, CLASS, NAMES)]
+    for n, (days_ago, profiles) in enumerate(PLANS):
+        order = [ids[i] for i in SHUFFLES[n]]
         start = now - days_ago * 86400
         lesson = Lesson("EX-01", clock=lambda: start, owner=a.owner, class_name=CLASS,
                         date=time.strftime("%Y-%m-%d", time.localtime(start)), stations=len(GROUPS))
         lesson.clock = time.time
         lesson.closed = True
-        for group, run in zip(GROUPS, profiles):
+        for g, (group, run) in enumerate(zip(GROUPS, profiles)):
             c = Clock(start)
             s = Session("EX-01", rec, clock=c, label=group, lesson_id=lesson.id)
+            s.members = order[g * 3:(g + 1) * 3]
             run(s, c)
             s.clock = time.time
             lesson.session_ids.append(s.id)
             store.save_session(s)
         store.save_lesson(lesson)
-    print(f"נוצרה כיתה לדוגמה: {CLASS}, {len(PLANS)} שיעורים, {len(GROUPS)} קבוצות. הפעילו מחדש את השרת.")
+    print(f"נוצרה כיתה לדוגמה: {CLASS}, {len(NAMES)} תלמידים, {len(PLANS)} שיעורים, {len(GROUPS)} קבוצות. הפעילו מחדש את השרת.")
 
 
 if __name__ == "__main__":

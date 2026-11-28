@@ -159,7 +159,7 @@ def card(s: Session, index: int, policy: str = "none") -> dict:
     flag = {-1: "בטיחות", 0: "תקוע", 1: "רמז 3"}.get(urgency) or ("הושלם" if s.state == "CLOSED" else None)
     scores = s.teacher_scores or rubric(s)
     return {
-        "id": s.id, "label": s.label, "index": index, "state": s.state, "stage": STATE_LABEL[s.state],
+        "id": s.id, "label": s.label, "members": s.members, "index": index, "state": s.state, "stage": STATE_LABEL[s.state],
         "step": STEP_OF[s.state], "seconds_in_state": int(s.time_in_state()), "paused": s.paused,
         "hypothesis": s.hypothesis, "hypothesis_label": hyp, "hints_used": s.hints_used, "quota": s.hint_quota,
         "flag": flag, "urgency": urgency, "alerts": al, "rubric": scores, "confirmed": s.teacher_scores is not None,

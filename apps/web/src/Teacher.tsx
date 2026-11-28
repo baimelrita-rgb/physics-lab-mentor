@@ -67,7 +67,7 @@ export function TeacherHome() {
   );
 }
 
-export function TeacherHeader({ tab = "live" }: { tab?: "live" | "prep" | "class" }) {
+export function TeacherHeader({ tab = "live" }: { tab?: "live" | "prep" | "class" | "students" }) {
   const [llm, setLlm] = useState<boolean | null>(null);
   const [me, setMe] = useState<Me | null>(null);
   useEffect(() => { api.status().then((x) => setLlm(x.llm)).catch(() => setLlm(null)); }, []);
@@ -81,7 +81,7 @@ export function TeacherHeader({ tab = "live" }: { tab?: "live" | "prep" | "class
         <nav className="t-tabs" aria-label="לשוניות">
           <a href="/teacher" className={tab === "live" ? "cur" : ""}>שיעור חי</a>
           <a href="/teacher/prep" className={tab === "prep" ? "cur" : ""}>הכנת שיעור</a>
-          <span title="בשלב הבא">תלמידים</span>
+          <a href="/teacher/students" className={tab === "students" ? "cur" : ""}>תלמידים</a>
           <a href="/teacher/class" className={tab === "class" ? "cur" : ""}>כיתה</a>
           <span title="בשלב הבא">תוכן</span>
         </nav>
@@ -235,6 +235,7 @@ function StationCard({ c, onOpen, refresh }: { c: Card; onOpen: () => void; refr
   return (
     <article className="t-card" style={{ borderColor: border, borderWidth: c.urgency < 2 ? (c.urgency < 0 ? 3 : 2) : 1 }}>
       <div className="t-card-top"><b>{c.label}</b><span className="muted sm">{c.paused ? "מושהה" : `שלב ${c.step + 1} מתוך 6`}</span></div>
+      {!!c.member_names?.length && <div className="t-members sm">{c.member_names.join(" · ")}</div>}
       <div className="t-card-stage"><span className="t-stage">{c.stage}</span><span className="muted sm">{mmss(c.seconds_in_state)} בשלב</span></div>
       <div className="sm">השערה אחרונה: <b>{c.hypothesis_label ?? "—"}</b></div>
       <div className="t-card-top sm muted">
@@ -263,6 +264,24 @@ const EVENT_LABEL: Record<string, string> = {
   "teacher.resumed": "המשך", "teacher.message": "הודעת מורה", "student.asked": "שאלה למנטור", "teacher.scored": "ציון אושר",
 };
 
+function MembersEditor({ d, onSaved }: { d: Detail; onSaved: () => void }) {
+  const [sel, setSel] = useState<string[]>(d.members);
+  const [saved, setSaved] = useState(true);
+  useEffect(() => { setSel(d.members); setSaved(true); }, [d.id]);
+  const toggle = (id: string) => { setSel((m) => (m.includes(id) ? m.filter((x) => x !== id) : [...m, id])); setSaved(false); };
+  return (
+    <div className="box">
+      <div className="t-card-top"><span className="muted sm">תלמידי הקבוצה</span>
+        {!saved && <button className="secondary auto sm-btn" onClick={async () => { await teacherApi.setMembers(d.id, sel); setSaved(true); onSaved(); }}>שמירה</button>}</div>
+      <div className="chips">
+        {d.roster.map((r) => (
+          <button key={r.id} className={`chip-btn sm ${sel.includes(r.id) ? "sel" : ""}`} onClick={() => toggle(r.id)} aria-pressed={sel.includes(r.id)}>{r.name}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function DetailDrawer({ sid, onClose, refresh }: { sid: string; onClose: () => void; refresh: () => void }) {
   const [d, setD] = useState<Detail | null>(null);
   const [msg, setMsg] = useState("");
@@ -273,6 +292,8 @@ function DetailDrawer({ sid, onClose, refresh }: { sid: string; onClose: () => v
       <aside className="t-drawer" onClick={(e) => e.stopPropagation()} aria-label="פירוט עמדה">
         <div className="t-card-top"><div className="t-h">{d.label} · {d.stage}</div><button className="x big" onClick={onClose} aria-label="סגור">×</button></div>
         <div className="box"><div className="muted sm">מסקנה מצופה (למורה בלבד)</div><div>{d.expected.cause_label}. {d.expected.conclusion}</div></div>
+
+        {d.roster.length > 0 && <MembersEditor d={d} onSaved={refresh} />}
 
         <ScoreEditor d={d} onSaved={(nd) => { setD(nd); refresh(); }} />
 
