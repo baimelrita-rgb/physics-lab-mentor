@@ -120,3 +120,58 @@ textarea { font-family: inherit; font-size: 15px; border: 1px solid var(--line);
 .picker-list { display: flex; flex-direction: column; gap: 10px; }
 .picker-item { display: flex; gap: 14px; align-items: center; text-align: start; background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
 .picker-item .chip { margin-inline-start: auto; font-size: 13px; padding: 4px 10px; }
+
+.note.teacher { background: #EEF0FF; color: #2A3170; border: 1px solid #C9CEF5; }
+
+/* Join (S0) */
+.join { flex: 1; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.join-box { width: min(420px, 100%); padding: 24px; display: flex; flex-direction: column; gap: 10px; }
+.join-code { font-size: 36px; letter-spacing: 8px; text-align: center; padding: 10px; border: 1px solid var(--line); border-radius: 10px; font-family: inherit; }
+.join-input { font-size: 18px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; font-family: inherit; }
+a.picker-item { color: inherit; text-decoration: none; }
+
+/* Teacher (design/Teacher.dc.html) */
+.t-page { min-height: 100vh; }
+.t-header { background: var(--bar); color: var(--bar-text); padding: 0 24px; }
+.t-header-in { max-width: 1400px; margin: 0 auto; display: flex; align-items: center; gap: 24px; flex-wrap: wrap; min-height: 60px; }
+.t-brand { font-size: 19px; font-weight: 700; }
+.t-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.t-tabs a, .t-tabs span { color: #C9D0D8; border-radius: 8px; padding: 8px 14px; text-decoration: none; font-size: 15px; }
+.t-tabs span { opacity: .55; cursor: default; }
+.t-tabs a.cur { color: #fff; background: var(--primary); font-weight: 600; }
+.t-wrap { max-width: 1400px; margin: 0 auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 20px; }
+.t-h { font-size: 16px; font-weight: 700; } .t-h.sm2 { font-size: 14px; margin-top: 6px; }
+.t-section { padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
+.t-lesson { padding: 16px 20px; display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.t-ex { font-size: 18px; font-weight: 700; }
+.t-code-n { font-size: 26px; font-weight: 700; letter-spacing: 4px; color: var(--primary); }
+.t-actions { margin-inline-start: auto; display: flex; gap: 8px; }
+.secondary.auto { width: auto; }
+.t-row { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+.t-cards-wrap { flex: 999 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.t-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 12px; }
+.t-empty { padding: 16px; }
+.t-card { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.t-card-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.t-card-stage { display: flex; gap: 6px; align-items: center; }
+.t-stage { background: var(--primary-soft); color: var(--primary); border-radius: 999px; padding: 3px 10px; font-size: 13px; font-weight: 600; }
+.t-flag { border-radius: 6px; padding: 2px 8px; font-weight: 600; }
+.t-card-actions { display: flex; gap: 6px; }
+.t-card-actions button { flex: 1; min-height: 40px; border-radius: 8px; border: 1px solid var(--line); background: #fff; font-size: 13px; }
+.t-alerts { flex: 1 1 300px; min-width: 0; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.t-alert { border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.t-alert-k { font-size: 13px; font-weight: 600; }
+.t-suggest { font-size: 13px; color: var(--muted); }
+.grow { flex: 999 1 560px; min-width: 0; } .side { flex: 1 1 320px; min-width: 0; }
+.t-rubric { width: 100%; border-collapse: separate; border-spacing: 4px; font-size: 14px; }
+.t-rubric th { font-size: 13px; color: var(--muted); font-weight: 600; }
+.t-rubric td { text-align: center; border-radius: 6px; padding: 8px 4px; font-weight: 600; }
+.t-rubric td:first-child { text-align: start; } .t-rubric .b { font-weight: 700; }
+.t-mis { display: flex; flex-direction: column; gap: 4px; }
+.t-mis-row { display: flex; justify-content: space-between; font-size: 14px; }
+.t-bar { height: 8px; background: var(--bg); border-radius: 4px; } .t-bar div { height: 8px; background: #C2570C; border-radius: 4px; }
+.t-drawer-bg { position: fixed; inset: 0; background: rgba(21,25,30,.35); display: flex; justify-content: flex-end; }
+.t-drawer { width: min(520px, 100%); height: 100%; overflow: auto; background: #fff; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+.x.big { font-size: 26px; }
+.t-msg { display: flex; gap: 8px; } .t-msg input { flex: 1; font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; }
+.t-timeline { margin: 0; padding-inline-start: 20px; font-size: 13px; display: flex; flex-direction: column; gap: 3px; }

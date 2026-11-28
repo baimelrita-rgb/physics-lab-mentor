@@ -4,18 +4,20 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import content
+from . import content, teacher
 from .ingest import load_all
 from .session import GuardError, Session
+from .teacher import Lesson
 
 app = FastAPI(title="Lab Mentor")
 RECORDINGS = load_all(content.DATA)
 SESSIONS: dict[str, Session] = {}
+LESSONS: dict[str, Lesson] = {}
 LOG = content.ROOT / "var" / "learning_log.jsonl"
 SPEED = float(os.environ.get("REPLAY_SPEED", "1"))
 
@@ -37,6 +39,16 @@ def _run(sid: str, fn):
 
 
 class NewSession(BaseModel):
+    exercise_id: str
+    label: str = "עמדה 1"
+
+
+class Join(BaseModel):
+    code: str
+    label: str = "עמדה"
+
+
+class NewLesson(BaseModel):
     exercise_id: str
 
 
@@ -78,14 +90,110 @@ def list_exercises():
              "available": v["recording"] in RECORDINGS} for k, v in exs.items()]
 
 
-@app.post("/api/sessions")
-def create_session(body: NewSession):
-    ex = content.exercises()["exercises"].get(body.exercise_id)
+def _new_session(exercise_id: str, label: str, lesson: Lesson | None = None) -> Session:
+    ex = content.exercises()["exercises"].get(exercise_id)
     if not ex or ex["recording"] not in RECORDINGS:
         raise HTTPException(404, "exercise or recording not available")
-    s = Session(body.exercise_id, RECORDINGS[ex["recording"]], log_path=LOG, replay_speed=SPEED)
+    s = Session(exercise_id, RECORDINGS[ex["recording"]], log_path=LOG, replay_speed=SPEED,
+                label=label.strip()[:30] or "עמדה", lesson_id=lesson.id if lesson else None)
     SESSIONS[s.id] = s
-    return s.student_view()
+    if lesson:
+        lesson.session_ids.append(s.id)
+    return s
+
+
+@app.post("/api/sessions")
+def create_session(body: NewSession):
+    return _new_session(body.exercise_id, body.label).student_view()
+
+
+@app.post("/api/join")
+def join(body: Join):
+    lesson = next((l for l in LESSONS.values() if l.code == body.code.strip() and not l.closed), None)
+    if not lesson:
+        raise HTTPException(404, "lesson code not found")
+    return _new_session(lesson.exercise_id, body.label, lesson).student_view()
+
+
+# ---------- teacher ----------
+# Demo protection only: set TEACHER_TOKEN to require it. Real teacher login (OIDC) comes before a pilot.
+TEACHER_TOKEN = os.environ.get("TEACHER_TOKEN", "")
+
+
+def _teacher(token: str | None):
+    if TEACHER_TOKEN and token != TEACHER_TOKEN:
+        raise HTTPException(401, "teacher token required")
+
+
+def _lesson(lid: str) -> Lesson:
+    if lid not in LESSONS:
+        raise HTTPException(404, "lesson not found")
+    return LESSONS[lid]
+
+
+@app.post("/api/teacher/lessons")
+def create_lesson(body: NewLesson, x_teacher_token: str | None = Header(None)):
+    _teacher(x_teacher_token)
+    if body.exercise_id not in content.exercises()["exercises"]:
+        raise HTTPException(404, "exercise not found")
+    lesson = Lesson(body.exercise_id)
+    LESSONS[lesson.id] = lesson
+    return teacher.live(lesson, SESSIONS)
+
+
+@app.get("/api/teacher/lessons")
+def list_lessons(x_teacher_token: str | None = Header(None)):
+    _teacher(x_teacher_token)
+    return [{"id": l.id, "code": l.code, "exercise_id": l.exercise_id, "stations": len(l.session_ids),
+             "closed": l.closed} for l in LESSONS.values()]
+
+
+@app.get("/api/teacher/lessons/{lid}")
+def lesson_live(lid: str, x_teacher_token: str | None = Header(None)):
+    _teacher(x_teacher_token)
+    return teacher.live(_lesson(lid), SESSIONS)
+
+
+@app.post("/api/teacher/lessons/{lid}/{action}")
+def lesson_action(lid: str, action: str, x_teacher_token: str | None = Header(None)):
+    _teacher(x_teacher_token)
+    lesson = _lesson(lid)
+    for sid in lesson.session_ids:
+        if action == "pause":
+            SESSIONS[sid].pause()
+        elif action == "resume":
+            SESSIONS[sid].resume()
+        elif action != "close":
+            raise HTTPException(404, "unknown action")
+    if action == "close":
+        lesson.closed = True
+    return teacher.live(lesson, SESSIONS)
+
+
+@app.get("/api/teacher/sessions/{sid}")
+def session_detail(sid: str, x_teacher_token: str | None = Header(None)):
+    _teacher(x_teacher_token)
+    return teacher.detail(_session(sid))
+
+
+@app.post("/api/teacher/sessions/{sid}/{action}")
+def session_action(sid: str, action: str, body: Text | None = None, x_teacher_token: str | None = Header(None)):
+    _teacher(x_teacher_token)
+    s = _session(sid)
+    try:
+        if action == "pause":
+            s.pause()
+        elif action == "resume":
+            s.resume()
+        elif action == "hint":
+            s.teacher_hint()
+        elif action == "message":
+            s.send_message(body.text if body else "")
+        else:
+            raise HTTPException(404, "unknown action")
+    except GuardError as e:
+        raise HTTPException(409, {"code": "STATE_GUARD_FAILED", "detail": str(e)})
+    return teacher.detail(s)
 
 
 @app.get("/api/sessions/{sid}")

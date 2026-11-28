@@ -21,7 +21,20 @@ cd apps/web && npm install && npm run build && cd ../..
 cd apps/api && python3 -m uvicorn lab.app:app --port 8000
 ```
 
-אחר כך פותחים את http://localhost:8000 ובוחרים תרגיל. כדי שההקלטה תתנגן מהר יותר בהדגמה, מריצים את השרת עם `REPLAY_SPEED=4`. בדיקות: `cd apps/api && python3 -m pytest`.
+אחר כך פותחים את http://localhost:8000. בדיקות: `cd apps/api && python3 -m pytest`.
+
+| כתובת | מסך |
+|---|---|
+| `/teacher` | מסך מורה: פתיחת שיעור, כרטיסי עמדות, התראות, מחוון, יומן עמדה |
+| `/join` | הצטרפות עמדה לשיעור עם קוד בן 6 ספרות |
+| `/demo` | תרגול בלי שיעור |
+
+הגדרות שרת להדגמה: `REPLAY_SPEED=4` מנגן את ההקלטה מהר יותר. `STUCK_SECONDS=60` מקצר את הזמן עד התראת ״תקוע״ (ברירת מחדל 300). `TEACHER_TOKEN=...` דורש קוד גישה למסך המורה. זו הגנה בסיסית להדגמה בלבד: לפני פיילוט צריך כניסת מורים אמיתית.
+
+### כלים
+
+- `python3 tools/simulator/make_healthy.py` יוצר את ההרצות התקינות N01–N03 (`data/TLM_Rita_Normal_SIMULATED.csv`) לפי מפרט `TLM_Rita_02_Healthy.docx`, ובודק את כל ערכי הייחוס שבמפרט.
+- `python3 tools/content_review.py` מעדכן את [docs/05-content-review.md](docs/05-content-review.md), דף קריא של תוכן התרגילים לבדיקת המורה.
 
 ## מסמכים
 

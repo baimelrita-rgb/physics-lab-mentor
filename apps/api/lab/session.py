@@ -60,13 +60,22 @@ class Session:
     feedback: dict | None = None
     attempts: list[dict] = field(default_factory=list)
     exit_answer: str | None = None
+    label: str = "עמדה 1"
+    lesson_id: str | None = None
+    teacher_message: str | None = None
+    hint_sources: list[str] = field(default_factory=list)   # "student" | "teacher", per level
+    channel_opens: list[dict] = field(default_factory=list)  # {channel, hints_used}
+    events: list[dict] = field(default_factory=list)          # timeline for the teacher
+    state_entered: float = 0.0
     _observe_started: float | None = None
     _recheck_started: float | None = None
+    _paused_at: float | None = None
     _ids: itertools.count = field(default_factory=lambda: itertools.count(1))
 
     def __post_init__(self):
         ex = self.ex
         self.open_channels = list(ex["initial_channels"])
+        self.state_entered = self.clock()
         # Random alias per session, so students cannot pass answers by run name (Brain 3).
         self.alias = f"הרצה {random.choice('אבגדהזחטכלמנסעפקרשת')}־{random.randint(1, 9)}"
         self._log("session.opened", exercise=self.exercise_id, recording=self.recording.run_id)
@@ -77,6 +86,7 @@ class Session:
         return content.exercises()["exercises"][self.exercise_id]
 
     def _log(self, type_: str, **payload):
+        self.events.append({"at": self.clock(), "state": self.state, "type": type_, **payload})
         if self.log_path:
             self.log_path.parent.mkdir(parents=True, exist_ok=True)
             with self.log_path.open("a", encoding="utf-8") as f:
@@ -92,6 +102,8 @@ class Session:
     def _go(self, new: str):
         old, self.state = self.state, new
         self.state_rev += 1
+        self.state_entered = self.clock()
+        self.teacher_message = None
         if new == "OBSERVE":
             self._observe_started = self.clock()
         if new == "RECHECK":
@@ -104,13 +116,49 @@ class Session:
         stop, end = self.ex["stop_s"], self.recording.duration
         if self.state in ("THEORY", "PREDICT"):
             return -1
+        now = self._paused_at if self._paused_at is not None else self.clock()   # replay freezes while paused
         if self.state == "OBSERVE":
-            elapsed = (self.clock() - self._observe_started) * self.replay_speed
+            elapsed = (now - self._observe_started) * self.replay_speed
             return min(stop, int(elapsed))
         if self.state in ("HYPOTHESIZE", "EVIDENCE", "REASON"):
             return stop
-        elapsed = (self.clock() - (self._recheck_started or self.clock())) * self.replay_speed
+        elapsed = (now - (self._recheck_started or now)) * self.replay_speed
         return min(end, stop + int(elapsed))
+
+    def time_in_state(self) -> float:
+        return self.clock() - self.state_entered
+
+    # ---------- teacher actions ----------
+    def pause(self):
+        if not self.paused:
+            self.paused, self._paused_at = True, self.clock()
+            self._log("teacher.paused")
+
+    def resume(self):
+        if self.paused:
+            gap = self.clock() - self._paused_at
+            for attr in ("_observe_started", "_recheck_started"):
+                if getattr(self, attr) is not None:
+                    setattr(self, attr, getattr(self, attr) + gap)
+            self.paused, self._paused_at = False, None
+            self._log("teacher.resumed")
+
+    def teacher_hint(self) -> str:
+        if self.state not in HINT_STATES:
+            raise GuardError(f"no hints in {self.state}")
+        if self.hints_used >= len(self.ex["hints"]):
+            raise GuardError("no hints left")
+        self.hints_used += 1
+        self.hint_sources.append("teacher")
+        self._log("hint.given", level=self.hints_used, by="teacher")
+        return self.ex["hints"][self.hints_used - 1]
+
+    def send_message(self, text: str):
+        text = text.strip()[:200]
+        if not text:
+            raise GuardError("empty message")
+        self.teacher_message = text
+        self._log("teacher.message", text=text)
 
     # ---------- actions ----------
     def answer_theory(self, choice: int) -> bool:
@@ -142,6 +190,7 @@ class Session:
             raise GuardError("channel not available in this exercise")
         if key not in self.open_channels:
             self.open_channels.append(key)
+            self.channel_opens.append({"channel": key, "hints_used": self.hints_used})
             self._log("channel.opened", channel=key, expectation=expectation, hints_used=self.hints_used)
 
     def close_channel(self, key: str):
@@ -168,7 +217,8 @@ class Session:
         if self.hints_used >= HINT_QUOTA:
             raise GuardError("no hints left")
         self.hints_used += 1
-        self._log("hint.given", level=self.hints_used)
+        self.hint_sources.append("student")
+        self._log("hint.given", level=self.hints_used, by="student")
         return self.ex["hints"][self.hints_used - 1]
 
     def submit_reason(self, text: str, cited_ids: list[str]) -> dict:
@@ -287,7 +337,10 @@ class Session:
                        for k in self.open_channels} if upto >= 0 else {},
             "readings": self.readings,
             "hints": {"used": self.hints_used, "quota": HINT_QUOTA,
-                      "given": self.ex["hints"][: self.hints_used]},
+                      "given": self.ex["hints"][: self.hints_used],
+                      "sources": self.hint_sources},
+            "note_from_teacher": self.teacher_message,
+            "label": self.label,
             "mentor": mentor,
             "feedback": self.feedback,
             "theory_answer": self.theory_answer,

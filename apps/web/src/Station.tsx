@@ -33,7 +33,7 @@ export function Station({ id }: { id: string }) {
       <header className="topbar">
         <div className="tb-group">
           <div className="tb-title">עמדת מנוע תלת־פאזי</div>
-          <div className="tb-sub">עמדה 1</div>
+          <div className="tb-sub">{v.label}</div>
         </div>
         <div className="tb-group">
           <span className="chip dark">{v.recording.alias}</span>
@@ -245,6 +245,10 @@ function Mentor({ v, act, error }: P & { error: string | null }) {
         </div>
       )}
 
+      {v.note_from_teacher && (
+        <div className="note teacher"><div className="muted sm">הודעה מהמורה</div>{v.note_from_teacher}</div>
+      )}
+
       {v.feedback && ["EVIDENCE", "RECHECK"].includes(v.state) && (
         <div className={`note ${v.feedback.passed ? "ok" : "warn"}`}>{v.feedback.message}</div>
       )}
@@ -275,7 +279,7 @@ function Mentor({ v, act, error }: P & { error: string | null }) {
       {v.hints.given.length > 0 && (
         <div className="stack">
           {v.hints.given.map((h, i) => (
-            <div key={i} className="hint"><span className="badge">רמז {i + 1} מתוך {v.hints.quota}</span><p>{h}</p></div>
+            <div key={i} className="hint"><span className="badge">רמז {i + 1} מתוך {v.hints.quota}{v.hints.sources[i] === "teacher" ? " · מהמורה" : ""}</span><p>{h}</p></div>
           ))}
         </div>
       )}
