@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ApiError, teacherApi, type LessonSettings, type Preview, type PrepStation, type TeacherExercise } from "./api";
 import { TeacherHeader } from "./Teacher";
+import { EnvelopeCheck, ExerciseFlow, Scenario, StationSetup } from "./PrepVisual";
 
 const STEPS = ["כיתה ועמדות", "תרגיל", "תצוגה מקדימה", "הגדרה ובטיחות", "עזרה וציון"];
 const today = () => new Date().toISOString().slice(0, 10);
@@ -99,50 +100,40 @@ export function LessonPrep() {
 
         {step === 2 && preview && (
           <section className="panel t-section">
-            <div className="t-h">{preview.number} · {preview.title}: מה התלמידים יראו</div>
-            {preview.status !== "approved" && <div className="note warn">התוכן של התרגיל הזה עדיין טיוטה. כדאי לעבור עליו לפני השיעור.</div>}
-            <dl className="prep-dl">
-              <dt>כותרת אצל התלמיד</dt><dd>{preview.number} (בלי שם, כדי לא לחשוף את התשובה)</dd>
-              <dt>מטרה</dt><dd>{preview.student.goal}</dd>
-              <dt>כרטיסי רקע</dt><dd>{preview.student.cards.join(" · ")}</dd>
-              <dt>שאלת הבנה</dt><dd>{preview.student.check}</dd>
-              <dt>תחזית</dt><dd>{preview.student.predict}</dd>
-              <dt>צפייה</dt><dd>{preview.student.observe} ההקלטה נעצרת בשנייה {preview.student.stop_s}.</dd>
-              <dt>השערות לבחירה</dt><dd>{preview.student.hypotheses.join(" · ")}</dd>
-              <dt>ערוצים</dt><dd>{preview.student.channels.join(" · ")}</dd>
-              <dt>רמזים לפי הסדר</dt><dd><ol>{preview.student.hints.map((h) => <li key={h}>{h}</li>)}</ol></dd>
-              {preview.student.recheck && <><dt>בדיקה חוזרת</dt><dd>{preview.student.recheck}</dd></>}
-              <dt>שאלת יציאה</dt><dd>{preview.student.exit}</dd>
-            </dl>
-            <button className="secondary auto" onClick={() => setShowKey(!showKey)}>{showKey ? "הסתרת המפתח" : "הצגת המפתח (למורה בלבד)"}</button>
-            {showKey && (
-              <dl className="prep-dl key">
-                <dt>תשובת שאלת ההבנה</dt><dd>{preview.key.check_answer}</dd>
-                <dt>הסיבה</dt><dd>{preview.key.cause}</dd>
-                <dt>ראיות נדרשות</dt><dd>{preview.key.evidence.join(" · ")}</dd>
-                <dt>מסקנה</dt><dd>{preview.key.conclusion}</dd>
-              </dl>
-            )}
-            <p className="muted sm">וריאציות לכל עמדה ייכנסו בשלב מאוחר יותר. עכשיו כל הקבוצות מקבלות את תרגיל הבסיס.</p>
+            <div className="pv-head">
+              <div>
+                <div className="t-h">{preview.number} · {preview.title}</div>
+                <div className="muted">{preview.student.goal}</div>
+              </div>
+              <span className={`chip ${preview.status === "approved" ? "okc" : "draft"}`}>{preview.status === "approved" ? "תוכן מאושר" : "תוכן טיוטה"}</span>
+              <label className="pv-keytoggle"><input type="checkbox" checked={showKey} onChange={(e) => setShowKey(e.target.checked)} /> הצגת המפתח (למורה בלבד)</label>
+            </div>
+            <p className="muted sm">אצל התלמיד הכותרת היא רק „{preview.number}“, בלי שם, כדי לא לחשוף את התשובה. לחצו על שלב כדי לראות מה התלמיד מקבל בו.</p>
+            <ExerciseFlow p={preview} showKey={showKey} />
+            {showKey && <div className="pv-conclusion"><b>מסקנה:</b> {preview.key.conclusion}</div>}
           </section>
         )}
 
         {step === 3 && preview && (
-          <section className="panel t-section">
-            <div className="t-h">הגדרה ובטיחות</div>
-            <div className="note">{preview.setup.note}</div>
-            <div className="t-h sm2">מעטפת הבטיחות של העמדה</div>
-            <ul className="prep-rules">
-              {preview.setup.envelope.map((r) => (
-                <li key={r.id}><b dir="ltr">{r.id}</b> {r.title}
-                  <span className={r.status === "approved" ? "q-ok" : "q-stale"}> · {r.status === "approved" ? "מאושר" : "ערך מוצע, ממתין לתלם"}</span></li>
-              ))}
-            </ul>
-            <label className="prep-check">
-              <input type="checkbox" checked={s.setup_ack} onChange={(e) => set({ setup_ack: e.target.checked })} />
-              עברתי על רשימת ההגדרה והבטיחות
-            </label>
-          </section>
+          <>
+            <section className="panel t-section">
+              <div className="t-h">הגדרת העמדה הפיזית</div>
+              <p className="muted sm">{preview.setup.note} ערך עם סימן ? הוא הצעה שצריך לאמת בעמדה.</p>
+              <StationSetup p={preview} />
+            </section>
+            <section className="panel t-section">
+              <div className="t-h">מה משתנה במהלך ההרצה <span className="muted sm">(למורה בלבד)</span></div>
+              <Scenario p={preview} />
+            </section>
+            <section className="panel t-section">
+              <div className="t-h">בדיקת מעטפת הבטיחות על ההקלטה</div>
+              <EnvelopeCheck p={preview} />
+              <label className="prep-check">
+                <input type="checkbox" checked={s.setup_ack} onChange={(e) => set({ setup_ack: e.target.checked })} />
+                עברתי על ההגדרה והבטיחות
+              </label>
+            </section>
+          </>
         )}
 
         {step === 4 && (

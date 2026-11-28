@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import content, envelope, llm, teacher
+from . import content, envelope, llm, setup, teacher
 from .ingest import load_all, resolve
 from .live import FrameError, LiveStation
 from .session import GuardError, Session, exercise_number
@@ -306,6 +306,7 @@ def prep_preview(exercise_id: str, user: str = Depends(require_teacher)):
     if not ex:
         raise HTTPException(404, "exercise not found")
     key = content.answer_key()[exercise_id]
+    rec = resolve(RECORDINGS, ex["recording"])
     cards = data["knowledge_cards"]
     chan = {c["key"]: c["name"] for g in content.channels()["groups"] for c in g["channels"]}
     return {
@@ -330,12 +331,13 @@ def prep_preview(exercise_id: str, user: str = Depends(require_teacher)):
             "evidence": [e["label"] for e in key["evidence"]],
             "conclusion": key["conclusion"],
         },
-        "setup": {
-            "mode": "recording",
-            "steps": [],
-            "note": "במצב הקלטה התלמידים לא מפעילים את העמדה: הנתונים מנוגנים מהקלטה. אשף ההגדרה הפיזי ושערי הבטיחות שבו ייכנסו עם העמדה החיה.",
-            "envelope": [{"id": r["id"], "title": r["title"], "status": r["status"]} for r in envelope.rules()],
+        "timeline": {
+            "duration": len(rec.samples) if rec else 0, "stop_s": ex["stop_s"], "windows": ex.get("windows", {}),
+            "runs": len(ex["recording"].split("+")),
         },
+        "setup": dict(setup.teacher_setup(exercise_id, rec), mode="recording",
+                      note="במצב הקלטה התלמידים לא מפעילים את העמדה: הנתונים מנוגנים מהקלטה. "
+                           "ההגדרות כאן הן מצב ההתחלה שצריך לכוון בעמדה פיזית כדי לשחזר את התרגיל."),
     }
 
 

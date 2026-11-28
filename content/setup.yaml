@@ -1,0 +1,79 @@
+# Starting settings of each station component, per exercise (Brain 2 · station profile 1).
+# Values come from the recordings themselves (the state in the first seconds of each run),
+# so a physical station set up this way reproduces the recording's starting point.
+# Only the STARTING state is here (safe to show students in the setup wizard).
+# What changes during the run is in answer_key.yaml -> scenario (teacher only).
+# status: approved = from a nameplate photo; proposed = derived/planned, needs on-site check by Talem.
+
+station: ST-MOT-VFD-1
+# Energy path order, used to draw the station diagram.
+path: [GRID, ANA-IN, VFD-01, ANA-OUT, MOT-01, LOAD-01]
+
+components:
+  GRID:
+    name: רשת
+    model: חד־פאזי 220 V, 50 Hz
+    channels: []
+  ANA-IN:
+    name: מנתח כניסה
+    model: Lutron DW-6092
+    channels: [grid_v_rms_v, grid_i_rms_a, grid_f_hz, grid_p_active_w, grid_pf]
+  VFD-01:
+    name: וסת תדר
+    model: NFlixin 9600D-1T3-00400G
+    channels: [f_set_hz, f_drive_hz]
+  ANA-OUT:
+    name: מנתח מוצא
+    model: טרם נבחר
+    channels: [i_u_rms_a, i_v_rms_a, i_w_rms_a, u_uv_fund_rms_v, u_vw_fund_rms_v, u_wu_fund_rms_v]
+  MOT-01:
+    name: מנוע
+    model: E.M.G.Y MS712-4 · 0.37 kW
+    channels: [motor_temp_c, vibration_rms_mm_s]
+  LOAD-01:
+    name: בלם ומד מומנט
+    model: טרם זוהה
+    channels: [speed_rpm, torque_nm]
+  CTL-01:
+    name: בקר העמדה
+    model: Arduino UNO Q + מסך 10״
+    channels: []
+
+# Settings shared by every exercise.
+common:
+  MOT-01:
+    - {param: חיבור ליפופים, value: "משולש (Δ)", note: "380 V / 1.17 A לפי הלוחית", status: proposed}
+    - {param: חימום, value: "5 דק׳ ריצה לפני ההתחלה", note: "טמפרטורת מעטפת יציבה, כ־37.6°C בהקלטות", channel: motor_temp_c, status: proposed}
+  VFD-01:
+    - {param: מקור פקודה, value: לוח המקשים, status: proposed}
+    - {param: זמן האצה, value: "20 s (0→50 Hz)", note: "2.5 Hz לשנייה, כמו בהקלטה E02", status: proposed}
+    - {param: מצב, value: RUN, status: proposed}
+  ANA-IN:
+    - {param: רישום, value: פעיל, note: "מרווח 2 s, המינימום של המכשיר", status: proposed}
+  ANA-OUT:
+    - {param: חיבור, value: שלושת מוליכי המוצא, note: "מדידת רכיב יסוד, בלי אפס", status: proposed}
+  CTL-01:
+    - {param: סוכן עמדה, value: "פעיל, 1 דגימה בשנייה", status: proposed}
+    - {param: שעון, value: מסונכרן, status: proposed}
+
+# Operating points from Brain 2 (reference values for the diagnosis engine).
+operating_points:
+  A:
+    label: "נקודת עבודה A · 25 Hz"
+    settings:
+      VFD-01: [{param: תדר פקודה, value: 25, unit: Hz, channel: f_set_hz, tolerance: 0.1}]
+      LOAD-01: [{param: מומנט בלימה, value: 0.65, unit: N·m, channel: torque_nm, tolerance: 0.05}]
+    expect: {speed_rpm: 717, f_drive_hz: 25, i_u_rms_a: 0.73, grid_v_rms_v: 220, grid_p_active_w: 141}
+  B:
+    label: "נקודת עבודה B · 50 Hz"
+    settings:
+      VFD-01: [{param: תדר פקודה, value: 50, unit: Hz, channel: f_set_hz, tolerance: 0.1}]
+      LOAD-01: [{param: מומנט בלימה, value: 0.65, unit: N·m, channel: torque_nm, tolerance: 0.05}]
+    expect: {speed_rpm: 1468, f_drive_hz: 50, i_u_rms_a: 0.73, grid_v_rms_v: 220, grid_p_active_w: 205}
+
+exercises:
+  EX-01: {start: B}
+  EX-02: {start: B}
+  EX-03: {start: A}
+  EX-04: {start: B}
+  EX-05: {start: A}

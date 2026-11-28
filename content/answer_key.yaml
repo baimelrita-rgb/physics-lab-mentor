@@ -14,6 +14,10 @@ EX-01:
     - {any_of: [torque_nm, i_u_rms_a, i_v_rms_a, i_w_rms_a], window: [16, 22], label: מומנט או זרם אחרי}
   misconceptions: {H-FREQ: M-01, H-CMD: M-05, H-SUPPLY: M-06}
   conclusion: תדר נשאר 50 Hz, מומנט עלה מ־0.65 ל־1.55 N·m. תוספת עומס.
+  # What happens during the run (teacher only). how: physical = done at the station; software = injected by the system.
+  scenario:
+    - {t: [12, 16], component: LOAD-01, how: physical, action: "הגדלת מומנט הבלימה בהדרגה מ־0.65 ל־1.55 N·m", note: "תדר הווסת לא משתנה"}
+  live: {ok: true, note: "1.55 N·m נמוך מהמומנט הנקוב (2.58). אפשר לשחזר בעמדה חיה."}
 
 EX-02:
   leak_terms: [חסר ברכישה, תקלה ברכישה, בעיית רכישה, לא נקלט, תקלת מדידה]  # the mentor may never write these
@@ -24,6 +28,9 @@ EX-02:
     - {any_of: [i_v_rms_a], window: [12, 20], label: ערוץ V במהלך הפער}
   misconceptions: {H-LOAD: M-02, H-SUPPLY: M-02}
   conclusion: חסר ברכישה. U ו־W נשארו 0.730/0.731 A, אין בסיס לאובדן פאזה. V חוזר בשנייה 22.
+  scenario:
+    - {t: [12, 21], component: ANA-OUT, how: software, action: "הסתרת ערוץ זרם V ברכישה (drop_channel)", note: "המנוע ממשיך לעבוד כרגיל בשלוש פאזות"}
+  live: {ok: true, note: "מוזרק בתוכנה בלבד. אסור לנתק מוליך פאזה בזמן ריצה."}
 
 EX-03:
   leak_terms: [קריאה ישנה, המהירות קפואה, ערך קפוא, לא התעדכנה, לא מתעדכנת]  # the mentor may never write these
@@ -34,6 +41,10 @@ EX-03:
     - {any_of: [f_drive_hz], window: [10, 18], label: תדר יציאה בזמן הרמפה}
   misconceptions: {H-LOAD: M-03, H-FREQ: M-03}
   conclusion: בשנייה 18 הסל״ד (717) שייך לשנייה 9. התדר כבר 47.5 Hz. תגובת הציר מאומתת רק בשנייה 25.
+  scenario:
+    - {t: [10, 19], component: VFD-01, how: physical, action: "העלאת תדר הפקודה מ־25 ל־50 Hz (רמפה של 2.5 Hz לשנייה)"}
+    - {t: [10, 24], component: LOAD-01, how: software, action: "הקפאת קריאת המהירות על 717 סל״ד (stale)", note: "הקריאה חוזרת להתעדכן בשנייה 25"}
+  live: {ok: true, note: "שינוי התדר נעשה בעמדה. ההקפאה מוזרקת בתוכנה."}
 
 EX-04:
   leak_terms: [עומס יתר, מעל הנקוב, חורג מהנקוב, חריגה מהנקוב]  # the mentor may never write these
@@ -44,6 +55,10 @@ EX-04:
     - {any_of: [torque_nm], window: [15, 20], label: מומנט בזמן החריגה}
   misconceptions: {H-FREQ: M-01}
   conclusion: בשנייה 20 2.85 N·m ו־1.304/1.299/1.308 A, מעל הנקוב. חריגה מדומה, מועברת למורה.
+  scenario:
+    - {t: [10, 15], component: LOAD-01, how: physical, action: "הגדלת מומנט הבלימה מ־0.65 ל־2.85 N·m"}
+    - {t: [25, 30], component: LOAD-01, how: physical, action: "החזרת המומנט ל־0.65 N·m"}
+  live: {ok: false, note: "2.85 N·m ו־1.30 A מעל הערכים הנקובים (2.58 N·m, 1.17 A). מעטפת הבטיחות עוצרת את זה. בעמדה חיה מריצים רק את ההקלטה, או וריאציה עם עומס מוקטן באישור תלם."}
 
 EX-05:
   leak_terms: [התדר הוכפל, תדר היציאה הוכפל, התדר השתנה בין ההרצות]  # the mentor may never write these
@@ -56,6 +71,9 @@ EX-05:
     - {any_of: [speed_rpm], window: [40, 79], label: מהירות בהרצה השנייה}
   misconceptions: {H-SUPPLY: M-06, H-LOAD: M-04}
   conclusion: 717 מתוך 750 ו־1,467 מתוך 1,500. המהירות עוקבת אחרי התדר, והפרש של כ־33 סל״ד בשתי ההרצות באותו מומנט.
+  scenario:
+    - {t: [40, 40], component: VFD-01, how: physical, action: "הרצה ב׳: תדר פקודה 50 Hz באותו מומנט בלימה (0.65 N·m)", note: "שתי הרצות נפרדות, כל אחת 40 שניות"}
+  live: {ok: true, note: "שתי נקודות עבודה תקינות. אפשר לשחזר בעמדה חיה."}
 
 misconception_redirects:
   M-01: לפני שמסיקים שהתדר ירד, כדאי לבדוק מה הווסת מדווח. איזה ערוץ מראה את תדר היציאה?

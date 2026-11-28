@@ -46,8 +46,18 @@ export type Preview = {
   student: { goal: string; cards: string[]; check: string; predict: string; observe: string; stop_s: number;
     hypotheses: string[]; channels: string[]; hints: string[]; recheck: string | null; exit: string };
   key: { check_answer: string; cause: string; evidence: string[]; conclusion: string };
-  setup: { mode: string; steps: string[]; note: string; envelope: { id: string; title: string; status: string }[] };
+  timeline: { duration: number; stop_s: number; windows: Record<string, [number, number]>; runs: number };
+  setup: {
+    mode: string; note: string; point: string;
+    components: SetupComponent[];
+    expect: { channel: string; name: string; unit: string; value: number }[];
+    scenario: { t: [number, number]; component: string; component_name: string; how: "physical" | "software"; action: string; note?: string }[];
+    live: { ok: boolean; note: string };
+    envelope: { id: string; title: string; status: string; level: "ok" | "warn" | "stop"; value: number | null; limit: number | null }[];
+  };
 };
+export type SetupItem = { param: string; value: string | number; unit?: string; note?: string; status?: string; channel?: string; tolerance?: number };
+export type SetupComponent = { id: string; name: string; model: string; needed: boolean; channels: string[]; settings: SetupItem[] };
 
 export type Alert = { kind: string; title: string; text: string; suggest: string; station?: string; session?: string };
 export type Card = {

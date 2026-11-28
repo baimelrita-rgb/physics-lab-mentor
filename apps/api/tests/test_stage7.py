@@ -59,3 +59,32 @@ def test_deduction_lowers_total(tmp_path, monkeypatch):
     card = c.get(f"/api/teacher/lessons/{live['lesson']['id']}").json()["cards"][0]
     assert card["deduction"] == 1                                   # teacher hints are not deducted
     assert "ניכוי רמזים" in c.get(f"/api/teacher/lessons/{live['lesson']['id']}/export.csv").text
+
+
+def test_every_exercise_has_station_setup():
+    from lab import content, setup
+    for eid in content.exercises()["exercises"]:
+        st = setup.start_setup(eid)
+        assert st["point"] and st["expect"]
+        assert {c["id"] for c in st["components"] if c["needed"]} >= {"VFD-01", "MOT-01", "LOAD-01"}
+        assert "scenario" not in st and "live" not in st          # starting state only: safe for students
+        assert "scenario" in content.answer_key()[eid]
+
+
+def test_start_setup_matches_recording_start():
+    from lab import app as appmod, content, setup
+    from lab.ingest import resolve
+    for eid, ex in content.exercises()["exercises"].items():
+        rec = resolve(appmod.RECORDINGS, ex["recording"])
+        first = rec.samples[0].values
+        for e in setup.start_setup(eid)["expect"]:
+            assert abs(first[e["channel"]] - e["value"]) <= max(0.03 * abs(e["value"]), 2), (eid, e)
+
+
+def test_overload_exercise_flagged_not_live(tmp_path, monkeypatch):
+    c = client(tmp_path, monkeypatch)
+    s4 = c.get("/api/teacher/prep/EX-04").json()["setup"]
+    assert s4["live"]["ok"] is False
+    assert {r["id"] for r in s4["envelope"] if r["level"] == "stop"} == {"R-MOT-01", "R-MOT-02"}
+    s1 = c.get("/api/teacher/prep/EX-01").json()["setup"]
+    assert s1["live"]["ok"] and all(r["level"] == "ok" for r in s1["envelope"])
