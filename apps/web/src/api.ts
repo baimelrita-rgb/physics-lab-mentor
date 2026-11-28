@@ -13,7 +13,7 @@ export type View = {
     predict_channels: { key: string; name: string }[];
     hypotheses: { code: string; label: string }[];
   };
-  recording: { alias: string; origin: string };
+  recording: { alias: string; origin: string; runs: { from: number; label: string }[] };
   visible_t: number;
   groups: { id: string; title: string; channels: { key: string; name: string; unit: string; open: boolean }[] }[];
   series: Record<string, { name: string; unit: string; points: Point[] }>;

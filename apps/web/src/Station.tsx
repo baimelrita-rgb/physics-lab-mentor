@@ -190,10 +190,11 @@ function Investigate({ v, act }: P) {
           {keys.map((k, i) => (
             <Chart key={k} name={v.series[k].name} unit={v.series[k].unit} points={v.series[k].points}
                    duration={ex.duration} visibleT={v.visible_t} windows={windows} color={COLORS[i % 3]}
-                   clickable={canRead} onPick={(t) => act(api.reading(v.id, k, t))} />
+                   clickable={canRead} onPick={(t) => act(api.reading(v.id, k, t))}
+                   runs={v.recording.runs.length > 1 ? v.recording.runs : []} />
           ))}
           <div className="xaxis" dir="ltr">
-            {[0, 5, 10, 15, 20, 25, 30, 35].map((t) => (
+            {Array.from({ length: Math.floor((ex.duration - 1) / (ex.duration > 50 ? 10 : 5)) + 1 }, (_, i) => i * (ex.duration > 50 ? 10 : 5)).map((t) => (
               <span key={t} style={{ left: `${((8 + (t / ex.duration) * 664) / 680) * 100}%` }}>{t}</span>
             ))}
             <span style={{ left: "98.8%" }}>{ex.duration} s</span>

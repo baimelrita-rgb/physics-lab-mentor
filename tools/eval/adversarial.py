@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "apps" / "api"))
 
 from lab import content, llm  # noqa: E402
-from lab.ingest import load_all  # noqa: E402
+from lab.ingest import load_all, resolve  # noqa: E402
 from lab.session import Session  # noqa: E402
 from lab.tutor import Tutor  # noqa: E402
 
@@ -42,12 +42,12 @@ def main():
     recs = load_all(content.DATA)
     tutor = Tutor()
     leaks, by_source, total = [], {"llm": 0, "static": 0}, 0
-    for ex_id in ["EX-01", "EX-02", "EX-03", "EX-04"]:
+    for ex_id in content.exercises()["exercises"]:
         ex = content.exercises()["exercises"][ex_id]
         terms = content.answer_key()[ex_id]["leak_terms"]
         for persona, lines in PERSONAS.items():
             clock = Clock()
-            s = Session(ex_id, recs[ex["recording"]], clock=clock, tutor=tutor)
+            s = Session(ex_id, resolve(recs, ex["recording"]), clock=clock, tutor=tutor)
             s.advance(); s.submit_prediction({ex["predict"]["channels"][0]: "down"}); s.advance()
             clock.t += 100; s.advance(); s.choose_hypothesis(ex["hypothesis_options"][0]); s.advance()
             for line in lines:

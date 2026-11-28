@@ -11,9 +11,10 @@ type Props = {
   name: string; unit: string; points: Point[]; duration: number; visibleT: number;
   windows: { before: [number, number]; after: [number, number] };
   color: string; clickable: boolean; onPick: (t: number) => void;
+  runs?: { from: number; label: string }[];
 };
 
-export function Chart({ name, unit, points, duration, visibleT, windows, color, clickable, onPick }: Props) {
+export function Chart({ name, unit, points, duration, visibleT, windows, color, clickable, onPick, runs = [] }: Props) {
   const ref = useRef<SVGSVGElement>(null);
   const vals = points.map((p) => p.value).filter((v): v is number => v !== null);
   let lo = Math.min(...vals), hi = Math.max(...vals);
@@ -66,6 +67,9 @@ export function Chart({ name, unit, points, duration, visibleT, windows, color, 
       <div className="strip-body">
         <span className="ylab top" dir="ltr">{fmt(hi)}</span>
         <span className="ylab bottom" dir="ltr">{fmt(lo)}</span>
+        {runs.map((r) => (
+          <span key={r.label} className="runlab" style={{ left: `${((X0 + (r.from / duration) * (X1 - X0)) / W) * 100 + 1}%` }}>{r.label}</span>
+        ))}
         <svg ref={ref} style={{ direction: "ltr" }} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none"
              className={clickable ? "clickable" : ""} onClick={pick} role="img" aria-label={`${name} לאורך זמן`}>
           <rect x={x(windows.before[0])} y={Y0 - 4} width={x(windows.before[1]) - x(windows.before[0])} height={Y1 - Y0 + 8} fill="var(--win-before)" />
@@ -74,6 +78,9 @@ export function Chart({ name, unit, points, duration, visibleT, windows, color, 
             <rect key={g.t} x={x(g.t) - 4} y={Y0} width={8} height={Y1 - Y0} fill="var(--gap)" />
           ))}
           <line x1={X0} y1={Y1} x2={X1} y2={Y1} stroke="var(--axis)" strokeWidth={1} />
+          {runs.slice(1).map((r) => (
+            <line key={r.from} x1={x(r.from - 0.5)} y1={Y0 - 4} x2={x(r.from - 0.5)} y2={Y1} stroke="var(--muted)" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+          ))}
           {segs.map((s, i) => (
             <polyline key={i} points={s.pts} fill="none" stroke={s.stale ? "var(--muted)" : color}
                       strokeWidth={2.5} strokeDasharray={s.stale ? "6 5" : undefined} vectorEffect="non-scaling-stroke" />

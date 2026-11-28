@@ -109,3 +109,23 @@ def load_all(data_dir: str | Path) -> dict[str, Recording]:
     for p in sorted(Path(data_dir).glob("*.csv")):
         out.update(load_csv(p).recordings)
     return out
+
+
+def resolve(recordings: dict[str, Recording], name: str) -> Recording | None:
+    """A recording by run id, or "A+B": runs played one after the other on one time axis
+    (used by EX-05, which compares two full runs)."""
+    parts = name.split("+")
+    if any(p not in recordings for p in parts):
+        return None
+    if len(parts) == 1:
+        return recordings[name]
+    samples, teacher, hyps, offset = [], [], [], 0
+    for p in parts:
+        r = recordings[p]
+        for smp in r.samples:
+            samples.append(Sample(smp.t + offset, smp.timestamp, smp.values, smp.flags))
+        teacher += [{**row, "t": row["t"] + offset, "run": p} for row in r.teacher_rows]
+        hyps += [(t + offset, h) for t, h in r.student_hypotheses]
+        offset += len(r.samples)
+    first = recordings[parts[0]]
+    return Recording(name, first.station_id, first.data_origin, samples, teacher, hyps)

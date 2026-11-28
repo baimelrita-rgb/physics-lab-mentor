@@ -136,3 +136,19 @@ def test_real_gateway_off_without_key(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
     assert Gateway().available is False
     assert Tutor().live is False
+
+
+def test_ex05_two_runs_skips_recheck(recs):
+    from test_stage1 import new
+    s, clock = new(recs, "EX-05")
+    assert s.recording.duration == 79
+    s.advance(); s.submit_prediction({"speed_rpm": "up"}); s.advance()
+    clock.t = 200; s.advance(); s.choose_hypothesis("H-FREQ"); s.advance()
+    s.open_channel("f_drive_hz")
+    ids = [s.add_reading("f_drive_hz", 10)["id"], s.add_reading("f_drive_hz", 60)["id"],
+           s.add_reading("speed_rpm", 10)["id"], s.add_reading("speed_rpm", 60)["id"]]
+    assert s.readings[0]["value"] == 25.0 and s.readings[1]["value"] == 50.0
+    s.advance()
+    assert s.submit_reason("התדר הוכפל והמהירות כמעט הוכפלה", ids)["passed"]
+    assert s.state == "EXIT"
+    assert len(s.student_view()["recording"]["runs"]) == 2

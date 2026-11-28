@@ -3,7 +3,7 @@ import json
 import pytest
 
 from lab import content
-from lab.ingest import SchemaError, load_all, load_csv
+from lab.ingest import SchemaError, load_all, load_csv, resolve
 from lab.session import GuardError, Session
 
 CSV = content.DATA / "TLM_Rita_Labeled_Errors.csv"
@@ -25,7 +25,7 @@ def recs():
 def new(recs, ex="EX-01"):
     clock = Clock()
     rec = content.exercises()["exercises"][ex]["recording"]
-    return Session(ex, recs[rec], clock=clock), clock
+    return Session(ex, resolve(recs, rec), clock=clock), clock
 
 
 # ---------- import ----------

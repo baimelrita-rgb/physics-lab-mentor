@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from . import content, llm, teacher
-from .ingest import load_all
+from .ingest import load_all, resolve
 from .session import GuardError, Session
 from .teacher import Lesson
 from .tutor import Tutor
@@ -89,14 +89,15 @@ class Text(BaseModel):
 def list_exercises():
     exs = content.exercises()["exercises"]
     return [{"id": k, "title": v["title"], "subtitle": v["subtitle"], "status": v["status"],
-             "available": v["recording"] in RECORDINGS} for k, v in exs.items()]
+             "available": resolve(RECORDINGS, v["recording"]) is not None} for k, v in exs.items()]
 
 
 def _new_session(exercise_id: str, label: str, lesson: Lesson | None = None) -> Session:
     ex = content.exercises()["exercises"].get(exercise_id)
-    if not ex or ex["recording"] not in RECORDINGS:
+    rec = resolve(RECORDINGS, ex["recording"]) if ex else None
+    if not rec:
         raise HTTPException(404, "exercise or recording not available")
-    s = Session(exercise_id, RECORDINGS[ex["recording"]], log_path=LOG, replay_speed=SPEED,
+    s = Session(exercise_id, rec, log_path=LOG, replay_speed=SPEED,
                 label=label.strip()[:30] or "עמדה", lesson_id=lesson.id if lesson else None, tutor=TUTOR)
     SESSIONS[s.id] = s
     if lesson:

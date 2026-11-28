@@ -152,3 +152,30 @@ exercises:
       - השווה גם את המומנט לערך הנקוב המחושב, ובדוק מה קורה בהמשך ההקלטה.
     recheck_prompt: ההקלטה ממשיכה. מה קורה אחרי שנייה 25?
     exit_question: למה חשוב להשוות זרם לערך מלוחית המנוע ולא רק לערך הקודם?
+
+  EX-05:
+    title: תדר ומהירות
+    subtitle: שתי הרצות
+    status: draft
+    goal: לבדוק איך תדר היציאה של הווסת קובע את מהירות הציר.
+    recording: N01_25HZ+N02_50HZ      # two full runs, one after the other
+    stop_s: 79
+    windows: {before: [5, 35], after: [45, 75], recheck: [45, 75]}
+    cards: [K-00, K-01]
+    check:
+      question: בעמדה יש שני ערוצי תדר. מה מודד תדר הרשת?
+      choices: ["את התדר שהווסת מספק למנוע", "את תדר הרשת בכניסת הווסת", "את מהירות הציר"]
+      highlight_card: K-00
+    initial_channels: [speed_rpm]
+    openable_channels: [f_drive_hz, f_set_hz, grid_f_hz, torque_nm, i_u_rms_a, u_uv_fund_rms_v]
+    predict:
+      prompt: בהרצה השנייה הווסת יעבוד בתדר אחר. מה לדעתך יקרה לכל ערוץ?
+      channels: [speed_rpm, f_drive_hz, torque_nm]
+    observe_prompt: צפו בשתי ההרצות. מה שונה ביניהן?
+    hypothesis_options: [H-FREQ, H-LOAD, H-SUPPLY, H-INSUFFICIENT]
+    hints:
+      - מה משותף לשתי ההרצות ומה שונה?
+      - חשב את המהירות הסינכרונית לכל תדר.
+      - השווה את ההפרש בין המהירות הסינכרונית למהירות בפועל בשתי ההרצות.
+    recheck_prompt: אין המשך להקלטה הזו.
+    exit_question: מה תהיה המהירות הסינכרונית בתדר 40 הרץ, ומה הערכתך למהירות הציר באותו מומנט?

@@ -104,6 +104,8 @@ class Session:
             raise GuardError("paused by teacher")
 
     def _go(self, new: str):
+        if new == "RECHECK" and self.ex["stop_s"] >= self.recording.duration:
+            new = "EXIT"                 # nothing left to play after the stop point (EX-05)
         old, self.state = self.state, new
         self.state_rev += 1
         self.state_entered = self.clock()
@@ -372,7 +374,9 @@ class Session:
                                    "highlight_card": ex["check"]["highlight_card"]},
                          "predict_channels": [{"key": k, "name": idx[k]["name"]} for k in ex["predict"]["channels"]],
                          "hypotheses": [{"code": h, "label": hyp_names[h]} for h in ex["hypothesis_options"]]},
-            "recording": {"alias": self.alias, "origin": self.recording.data_origin},
+            "recording": {"alias": self.alias, "origin": self.recording.data_origin,
+                          "runs": [{"from": i * 40, "label": f"הרצה {'אבגד'[i]}"}
+                                   for i in range(len(self.recording.run_id.split("+")))]},
             "visible_t": upto,
             "groups": groups,
             "series": {k: {"name": idx[k]["name"], "unit": idx[k]["unit"], "points": self._series(k, upto)}
