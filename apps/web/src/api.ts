@@ -56,6 +56,15 @@ export type Preview = {
     envelope: { id: string; title: string; status: string; level: "ok" | "warn" | "stop"; value: number | null; limit: number | null }[];
   };
 };
+export type ClassData = {
+  class_name: string; days: number | null; threshold_s: number; aspects: string[];
+  lessons: { id: string; date: string; exercise: string; number: number; groups: number }[];
+  heatmap: { label: string; sessions: number; finished: number; aspects: (number | null)[]; hints: number | null; confirmed: number }[];
+  misconceptions: { id: string; label: string; groups: number; group_names: string[]; sessions: number;
+    trend: { lesson: string; date: string; share: number | null }[]; direction: "up" | "down" | "flat" | null }[];
+  stages: { state: string; label: string; sessions: number; median_s: number | null; max_s: number | null; stuck: number; hints: number }[];
+  mastery: { id: string; title: string; class: number | null; sessions: number; groups: Record<string, number | null> }[];
+};
 export type SetupItem = { param: string; value: string | number; unit?: string; note?: string; status?: string; channel?: string; tolerance?: number };
 export type SetupComponent = { id: string; name: string; model: string; needed: boolean; channels: string[]; settings: SetupItem[] };
 
@@ -138,6 +147,9 @@ export const teacherApi = {
   createLesson: (body: Partial<LessonSettings> & { exercise_id: string }) => call<Live>("POST", "/teacher/lessons", body),
   lessons: () => call<LessonItem[]>("GET", "/teacher/lessons"),
   openLesson: (lid: string) => call<Live>("POST", `/teacher/lessons/${lid}/open`),
+  classes: () => call<{ name: string; lessons: number }[]>("GET", "/teacher/classes"),
+  classView: (name: string, days: number | null) =>
+    call<ClassData>("GET", `/teacher/class?name=${encodeURIComponent(name)}${days ? `&days=${days}` : ""}`),
   prepStations: () => call<PrepStation[]>("GET", "/teacher/prep/stations"),
   preview: (id: string) => call<Preview>("GET", `/teacher/prep/${id}`),
   live: (lid: string) => call<Live>("GET", `/teacher/lessons/${lid}`),

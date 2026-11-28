@@ -305,3 +305,46 @@ a.secondary.link-btn { color: var(--text); }
 .env-num { font-weight: 400; font-size: 13px; color: var(--muted); }
 @media (max-width: 1000px) { .ss-arrow { display: none; } }
 @media (max-width: 760px) { .stepper { overflow-x: auto; } .stepper .step { flex-shrink: 0; } }
+/* Class over time */
+.cv-top { flex-direction: row; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+.cv-pick { display: flex; flex-direction: column; gap: 6px; }
+.cv-count { background: rgba(0,0,0,.08); border-radius: 999px; padding: 0 7px; font-size: 12px; margin-inline-start: 4px; }
+.chip-btn.sel .cv-count { background: rgba(255,255,255,.25); }
+.cv-lessons { display: flex; gap: 8px; flex-wrap: wrap; }
+.cv-lesson { display: flex; flex-direction: column; gap: 2px; border: 1px solid var(--border); border-radius: 10px; padding: 8px 14px; text-decoration: none; color: var(--text); min-width: 92px; }
+.cv-lesson:hover { border-color: var(--primary); }
+.cv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(440px, 100%), 1fr)); gap: 20px; }
+.cv-grid > section { min-width: 0; }
+@media (max-width: 520px) { .cv-grid { grid-template-columns: 1fr; } }
+.cv-scroll { overflow-x: auto; }
+.cv-heat, .cv-mastery { border-collapse: separate; border-spacing: 3px; width: 100%; font-size: 14px; }
+.cv-heat th, .cv-mastery th { font-weight: 600; font-size: 13px; color: var(--muted); text-align: center; padding: 4px; }
+.cv-heat tbody th, .cv-mastery tbody th { text-align: start; color: var(--text); white-space: nowrap; }
+.cv-heat td { text-align: center; border-radius: 6px; padding: 8px 4px; font-weight: 700; min-width: 54px; }
+.cv-heat td.cv-plain { background: #F3F5F8; font-weight: 400; color: var(--text); }
+.cv-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.cv-legend i { display: inline-block; width: 14px; height: 12px; border-radius: 3px; margin-inline-end: 6px; vertical-align: middle; border: 1px solid #E1E5EA; }
+.cv-mis { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.cv-mis-h { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.cv-trend { font-size: 13px; border-radius: 999px; padding: 2px 10px; white-space: nowrap; }
+.cv-trend.down { background: var(--ok-soft); color: var(--ok); } .cv-trend.up { background: #FDECEC; color: #A12B2B; } .cv-trend.flat { background: #F3F5F8; color: var(--muted); }
+.cv-spark { display: flex; gap: 8px; align-items: flex-end; height: 64px; direction: ltr; }
+.cv-spark-col { flex: 1; max-width: 56px; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 2px; }
+.cv-spark-bar { width: 100%; background: #E08A3C; border-radius: 4px 4px 0 0; }
+.cv-spark-col span { font-size: 11px; color: var(--muted); }
+.cv-stages { display: flex; flex-direction: column; gap: 8px; }
+.cv-stage { display: grid; grid-template-columns: 92px 1fr 48px auto; gap: 10px; align-items: center; }
+@media (max-width: 520px) { .cv-stage { grid-template-columns: 70px 1fr 40px; } .cv-badges { grid-column: 2 / -1; } }
+.cv-stage-l { font-size: 14px; }
+.cv-stage-track { background: #EEF1F4; border-radius: 6px; height: 16px; }
+.cv-stage-bar { height: 100%; background: #6F8FC4; border-radius: 6px; min-width: 3px; }
+.cv-stage-bar.hot { background: #C2410C; }
+.cv-stage-v { font-size: 13px; font-variant-numeric: tabular-nums; }
+.cv-badges { display: flex; gap: 4px; }
+.cv-badge { font-size: 12px; background: #F3F5F8; border-radius: 6px; padding: 2px 6px; white-space: nowrap; }
+.cv-badge.stuck { background: #FDECEC; color: #A12B2B; font-weight: 600; }
+.cv-mastery td { text-align: center; border-radius: 6px; padding: 6px 4px; font-size: 13px; font-weight: 600; min-width: 44px; }
+.cv-mastery tr.nodata th { color: var(--muted); }
+.cv-mastery td.cv-mbar { display: flex; align-items: center; gap: 8px; min-width: 150px; font-weight: 700; }
+.cv-mtrack { flex: 1; height: 10px; background: #EEF1F4; border-radius: 5px; }
+.cv-mtrack div { height: 100%; background: var(--primary); border-radius: 5px; }

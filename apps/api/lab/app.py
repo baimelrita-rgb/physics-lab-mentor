@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import content, envelope, llm, setup, teacher
+from . import classview, content, envelope, llm, setup, teacher
 from .ingest import load_all, resolve
 from .live import FrameError, LiveStation
 from .session import GuardError, Session, exercise_number
@@ -284,6 +284,18 @@ def list_lessons(user: str = Depends(require_teacher)):
              "joined": len(l.session_ids), "stations": l.stations, "class_name": l.class_name, "date": l.date,
              "planned": l.planned, "closed": l.closed}
             for l in LESSONS.values() if _owns(user, l)]
+
+
+@app.get("/api/teacher/classes")
+def classes(user: str = Depends(require_teacher)):
+    return classview.class_names([l for l in LESSONS.values() if _owns(user, l) and not l.planned])
+
+
+@app.get("/api/teacher/class")
+def class_over_time(name: str, days: int | None = None, user: str = Depends(require_teacher)):
+    if days is not None and not 1 <= days <= 3650:
+        raise HTTPException(422, "days out of range")
+    return classview.build([l for l in LESSONS.values() if _owns(user, l)], SESSIONS, name, days)
 
 
 @app.get("/api/teacher/prep/stations")

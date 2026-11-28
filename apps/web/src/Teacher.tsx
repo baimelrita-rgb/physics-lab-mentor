@@ -67,7 +67,7 @@ export function TeacherHome() {
   );
 }
 
-export function TeacherHeader({ tab = "live" }: { tab?: "live" | "prep" }) {
+export function TeacherHeader({ tab = "live" }: { tab?: "live" | "prep" | "class" }) {
   const [llm, setLlm] = useState<boolean | null>(null);
   const [me, setMe] = useState<Me | null>(null);
   useEffect(() => { api.status().then((x) => setLlm(x.llm)).catch(() => setLlm(null)); }, []);
@@ -81,7 +81,9 @@ export function TeacherHeader({ tab = "live" }: { tab?: "live" | "prep" }) {
         <nav className="t-tabs" aria-label="לשוניות">
           <a href="/teacher" className={tab === "live" ? "cur" : ""}>שיעור חי</a>
           <a href="/teacher/prep" className={tab === "prep" ? "cur" : ""}>הכנת שיעור</a>
-          {["תלמידים", "כיתה", "תוכן"].map((t) => <span key={t} title="בשלב הבא">{t}</span>)}
+          <span title="בשלב הבא">תלמידים</span>
+          <a href="/teacher/class" className={tab === "class" ? "cur" : ""}>כיתה</a>
+          <span title="בשלב הבא">תוכן</span>
         </nav>
         {me && !me.demo && (
           <span className="t-user">{me.name}
