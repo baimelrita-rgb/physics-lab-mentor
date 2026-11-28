@@ -68,6 +68,8 @@ python3 tools/add_teacher.py rita "ריטה" --tenant school-a --labs lab-a1
 | `TRUST_PROXY` | `0` | `1` מאחורי פרוקסי, כדי לזהות את כתובת הלקוח |
 | `LESSON_HOURS` | `4` | אחרי כמה שעות שיעור נסגר מעצמו |
 | `SECRET_KEY` | נוצר בקובץ | מפתח חתימה לעוגיות המורים |
+| `ERROR_WEBHOOK_URL` | ריק | כתובת להתראה על שגיאות שרת |
+| `APP_VERSION` | `dev` | הגרסה שמוצגת ב־`/api/health` |
 
 **עמדה חיה:** לכל עמדה טוקן משלה, שנשמר רק כגיבוב:
 
@@ -108,14 +110,41 @@ python3 tools/add_teacher.py rita "ריטה"
 
 הגדרות שרת להדגמה: `REPLAY_SPEED=4` מנגן את ההקלטה מהר יותר. `STUCK_SECONDS=60` מקצר את הזמן עד התראת ״תקוע״ (ברירת מחדל 300). `TEACHER_TOKEN=...` מאפשר לסקריפטים לגשת ל־API של המורה עם הכותרת `X-Teacher-Token`.
 
-### Docker
+### Docker (מקומי)
 
 ```bash
 docker build -t lab-mentor .
-docker run -p 8000:8000 -v lab-state:/app/var -e ANTHROPIC_API_KEY=... lab-mentor
+docker run -p 8000:8000 -v lab-state:/app/var -e DEMO=1 -e COOKIE_SECURE=0 lab-mentor
 ```
 
-הסשנים, השיעורים ויומן הלמידה נשמרים בתיקייה `var/`, ובקונטיינר זה ה־volume שנקרא `lab-state`. קובץ ה־Docker עוד לא נבדק עד הסוף: בסביבת הפיתוח החסימות ברשת לא אפשרו להשלים את הבנייה.
+הקונטיינר רץ כמשתמש לא מורשה, והנתונים (מסד הנתונים, חשבונות, רשימות כיתה, גיבויים) נשמרים ב־volume שנקרא `lab-state`. הבנייה והרצה במצב ייצור נבדקו.
+
+### פריסה בענן (חבילה 7)
+
+על כל מכונה וירטואלית עם Docker (בכל ספק ענן). צריך שם דומיין שרשומת ה־A שלו מצביעה על המכונה, ושפורטים 80 ו־443 פתוחים.
+
+```bash
+cp deploy/env.example deploy/.env
+```
+
+בקובץ `deploy/.env` ממלאים לפחות `DOMAIN` ו־`SECRET_KEY` (הקובץ לא נכנס למאגר). אחר כך:
+
+```bash
+docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+```
+
+```bash
+docker compose -f deploy/docker-compose.yml exec app python /app/tools/add_teacher.py rita "ריטה"
+```
+
+מה עולה:
+- **app:** השרת, במצב ייצור (`DEMO=0`, עוגיות רק ב־HTTPS, זיהוי כתובת הלקוח מאחורי הפרוקסי), עם בדיקת בריאות ב־`/api/health`.
+- **https:** ‏Caddy, שמנפיק ומחדש לבד תעודת HTTPS לדומיין, ומוסיף כותרות אבטחה (HSTS, חסימת הטמעה במסגרת).
+- **backup:** גיבוי כל לילה של מסד הנתונים וקבצי המצב לארכיון אחד, 14 אחרונים נשמרים. כדאי להעתיק את התיקייה מחוץ למכונה.
+
+**שגיאות:** כל שגיאה בשרת נרשמת כשורת JSON עם מזהה בקשה (`X-Request-ID`), והמשתמש מקבל רק את המזהה. עם `ERROR_WEBHOOK_URL` נשלחת התראה (עד אחת לדקה), בלי טקסט של תלמידים.
+
+**CI:** ‏`.github/workflows/ci.yml` מריץ בכל דחיפה את בדיקות השרת, בניית המסכים עם בדיקת טיפוסים, בדיקת דפדפן מקצה לקצה (`tests/e2e/smoke.cjs`), ובניית הקונטיינר עם בדיקת בריאות במצב ייצור.
 
 ### עמדה חיה (הדגמה עם סימולטור)
 

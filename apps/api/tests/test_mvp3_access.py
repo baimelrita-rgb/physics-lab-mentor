@@ -83,3 +83,25 @@ def test_station_tokens(tmp_path, monkeypatch):
     assert tok not in (tmp_path / "stations.json").read_text()
     monkeypatch.setenv("DEMO", "0")
     assert not t.valid("ST-1", "dev-edge-token")
+
+
+def test_health_and_request_id():
+    from fastapi.testclient import TestClient
+    from lab import app as appmod
+    r = TestClient(appmod.app).get("/api/health")
+    assert r.status_code == 200 and r.json()["ok"] and len(r.headers["x-request-id"]) == 16
+
+
+def test_unhandled_error_is_logged_with_request_id(monkeypatch, capsys):
+    from fastapi.testclient import TestClient
+    from lab import app as appmod
+
+    def boom():
+        raise RuntimeError("kaboom")
+    monkeypatch.setattr(appmod.AUTH.__class__, "has_accounts", property(lambda self: boom()))
+    r = TestClient(appmod.app, raise_server_exceptions=False).get("/api/status")
+    assert r.status_code == 500 and "kaboom" not in r.text
+    rid = r.json()["request_id"]
+    assert rid == r.headers["x-request-id"]
+    err = capsys.readouterr().err
+    assert rid in err and "kaboom" in err

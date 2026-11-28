@@ -1,0 +1,52 @@
+# Cloud deployment on one VM with Docker (any provider).
+#   cp deploy/env.example deploy/.env   # then edit: DOMAIN and SECRET_KEY at least
+#   docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+# Caddy gets and renews the HTTPS certificate for DOMAIN by itself (ports 80 and 443 open).
+services:
+  app:
+    build:
+      context: ..
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DEMO: "0"
+      COOKIE_SECURE: "1"
+      TRUST_PROXY: "1"
+    volumes:
+      - state:/app/var
+    expose:
+      - "8000"
+
+  https:
+    image: caddy:2.8
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in deploy/.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+  backup:
+    build:
+      context: ..
+    restart: unless-stopped
+    depends_on:
+      - app
+    entrypoint: ["python", "/app/tools/backup.py", "/app/var/backups", "--keep", "${BACKUP_KEEP:-14}", "--every", "24"]
+    healthcheck:
+      disable: true
+    volumes:
+      - state:/app/var
+
+volumes:
+  state:
+  caddy-data:
+  caddy-config:

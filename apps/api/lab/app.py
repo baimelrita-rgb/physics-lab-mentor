@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import threading
+import time
 from collections import defaultdict
 from contextlib import contextmanager
 from pathlib import Path
@@ -13,7 +14,7 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import classview, content, editor, envelope, llm, setup, students, teacher
+from . import classview, content, editor, envelope, llm, ops, setup, students, teacher
 from .roster import Roster, RosterError
 from .ingest import load_all, resolve
 from .live import FrameError, LiveStation
@@ -81,12 +82,19 @@ async def guard(request: Request, call_next):
             from urllib.parse import urlparse
             if urlparse(origin).netloc != request.headers.get("host"):
                 return JSONResponse({"detail": "cross-site request refused"}, status_code=403)
-    # Content (and anything else tenant-scoped) is read for the caller's tenant only.
-    token = content.set_tenant(_request_tenant(request))
+    rid = ops.request_id()
     try:
-        return await _guarded(request, call_next, path)
-    finally:
-        content._TENANT.reset(token)
+        # Content (and anything else tenant-scoped) is read for the caller's tenant only.
+        token = content.set_tenant(_request_tenant(request))
+        try:
+            resp = await _guarded(request, call_next, path)
+        finally:
+            content._TENANT.reset(token)
+    except Exception as e:                       # unhandled error: JSON log line, request id to the client
+        ops.report_error(rid, request.method, path, e)
+        resp = JSONResponse({"detail": "server error", "request_id": rid}, status_code=500)
+    resp.headers["X-Request-ID"] = rid
+    return resp
 
 
 def _request_tenant(request: Request) -> str:
@@ -836,6 +844,19 @@ def hint(sid: str):
 @app.post("/api/sessions/{sid}/ask")
 def ask(sid: str, body: Text):
     return _run(sid, lambda s: s.ask(body.text))
+
+
+@app.get("/api/health")
+def health():
+    """For the load balancer / container HEALTHCHECK: the database answers and the content loads."""
+    try:
+        STORE.db.execute("SELECT 1").fetchone()
+        content.exercises()
+    except Exception as e:
+        ops.log("health_failed", error=type(e).__name__, message=str(e)[:200])
+        return JSONResponse({"ok": False}, status_code=503)
+    return {"ok": True, "version": ops.version(), "uptime_s": int(time.time() - ops.STARTED),
+            "sessions": len(SESSIONS), "lessons_open": sum(1 for l in LESSONS.values() if not l.closed)}
 
 
 @app.get("/api/status")
